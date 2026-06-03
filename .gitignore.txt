@@ -1,0 +1,29 @@
+# --- Python Bytecode and Caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Operating System & Cloud Storage Garbage ---
+.DS_Store
+Thumbs.db
+desktop.ini
+~*
+
+# --- Virtual Environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Project Specific Data Files ---
+# Ignore the data directory completely to avoid tracking heavy GeoJSON/CSV files
+data/
+*.geojson
+*.shp
+*.shx
+*.dbf
+*.prj
+*.csv
+
+# Exceptions: If you WANT to track state_cd.csv because it's a tiny lookup table
+!data/state_cd.csv

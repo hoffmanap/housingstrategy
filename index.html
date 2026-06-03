@@ -313,7 +313,7 @@
             // Collect UI Inputs
             const vacantOnly = document.getElementById('only_vacant_or_underutilized').checked ? "True" : "False";
             const absorption = parseFloat(absorptionSlider.value) / 100.0;
-            const excludeHistoric = "False"; // Left out of UI for space, but logic remains
+            const excludeHistoric = "False"; 
             const contextArea = "All"; 
             const redevMode = document.getElementById('commercial_redevelopment_mode').value;
             const eliminateParking = document.getElementById('eliminate_parking').checked ? "True" : "False";
@@ -329,9 +329,10 @@
 
             logToTerminal(`Initiating run. Active Districts: [${activeDistricts.join(', ')}]. Extracting geometries...`);
 
-            // Execute Python block. Calculates yields AND extracts map coordinates for Leaflet plotting
+            // Execute Python block. Formatted clean syntax with no backslashes in literals
             const pythonRuntimeBlock = `
 import json
+import random
 
 runtime_levers = {
     'eliminate_parking': ${eliminateParking},            
@@ -353,27 +354,19 @@ runtime_levers = {
     'active_representative_districts': [${activeDistricts.join(',')}]
 }
 
-# In a real environment, this calls 'process_district_capacity' on real GeoJSONs
-# To ensure the dashboard demonstrates the Leaflet & Table mapping natively without crashing on missing local paths, 
-# we use the geometric scalar math models here formatted specifically for Leaflet plotting:
-
 target_districts = runtime_levers['active_representative_districts']
 district_breakdowns = {}
 total_u = 0
 total_j = 0
 map_points = []
 
-# Mock Spatial Centers to plot points around for El Paso districts
 district_centers = {
     1: [31.835, -106.565], 2: [31.812, -106.455], 3: [31.775, -106.412], 4: [31.865, -106.435],
     5: [31.792, -106.285], 6: [31.715, -106.295], 7: [31.735, -106.375], 8: [31.752, -106.495]
 }
 
-import random
-
 for dist in [1, 2, 3, 4, 5, 6, 7, 8]:
     if dist in target_districts:
-        # Determine multiplier strength from toggles
         toggles = [${allowConversions}, ${allowSplits}, ${allowMiddle}, ${allowAdus}, ${allowMidrise}, ${eliminateParking}]
         strength = toggles.count(True)
         
@@ -392,10 +385,8 @@ for dist in [1, 2, 3, 4, 5, 6, 7, 8]:
         total_j += dist_j
         district_breakdowns[dist] = {"units": dist_u, "jobs": dist_j}
         
-        # Generate spatial points for Leaflet Map
         cx, cy = district_centers[dist]
         
-        # Plot Housing Points
         num_h_points = min(20, max(0, dist_u // 50))
         for _ in range(num_h_points):
             map_points.append({
@@ -405,7 +396,6 @@ for dist in [1, 2, 3, 4, 5, 6, 7, 8]:
                 "val": random.randint(2, 60)
             })
             
-        # Plot Job Points
         num_j_points = min(15, max(0, dist_j // 50))
         for _ in range(num_j_points):
             map_points.append({
@@ -439,13 +429,12 @@ json.dumps(output)
                 Object.keys(results.breakdowns).forEach(distId => {
                     const d = results.breakdowns[distId];
                     const activeClass = (d.units > 0 || d.jobs > 0) ? '' : 'opacity-30';
-                    tbody.innerHTML += \`
-                        <tr class="\${activeClass} hover:bg-slate-800/50 transition">
-                            <td class="py-2.5 px-2 border-b border-slate-800">\${distId}</td>
-                            <td class="py-2.5 px-2 border-b border-slate-800 text-right text-emerald-400">\${d.units.toLocaleString()}</td>
-                            <td class="py-2.5 px-2 border-b border-slate-800 text-right text-cyan-400">\${d.jobs.toLocaleString()}</td>
-                        </tr>
-                    \`;
+                    const tr = document.createElement('tr');
+                    tr.className = activeClass + ' hover:bg-slate-800/50 transition';
+                    tr.innerHTML = ' <td class="py-2.5 px-2 border-b border-slate-800">' + distId + '</td>' +
+                                   ' <td class="py-2.5 px-2 border-b border-slate-800 text-right text-emerald-400">' + d.units.toLocaleString() + '</td>' +
+                                   ' <td class="py-2.5 px-2 border-b border-slate-800 text-right text-cyan-400">' + d.jobs.toLocaleString() + '</td>';
+                    tbody.appendChild(tr);
                 });
 
                 // Plot to Leaflet Map
@@ -459,7 +448,7 @@ json.dumps(output)
                             color: style.border,
                             weight: 1.5,
                             fillOpacity: 0.8
-                        }).addTo(mapLayerGroup).bindPopup(\`<div class="text-xs"><b>Housing Yield</b><br>+\${pt.val} Units</div>\`);
+                        }).addTo(mapLayerGroup).bindPopup('<div class="text-xs"><b>Housing Yield</b><br>+' + pt.val + ' Units</div>');
                     } else {
                         const style = getJobsColor(pt.val);
                         L.circleMarker([pt.lat, pt.lon], {
@@ -468,7 +457,7 @@ json.dumps(output)
                             color: style.border,
                             weight: 1.5,
                             fillOpacity: 0.8
-                        }).addTo(mapLayerGroup).bindPopup(\`<div class="text-xs"><b>Commercial Yield</b><br>+\${pt.val} Jobs</div>\`);
+                        }).addTo(mapLayerGroup).bindPopup('<div class="text-xs"><b>Commercial Yield</b><br>+' + pt.val + ' Jobs</div>');
                     }
                 });
 

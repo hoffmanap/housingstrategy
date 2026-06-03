@@ -42,7 +42,7 @@ def estimate_existing_units(land_use_desc, state_code):
     if 'SIXPLEX' in desc or code in ['A56', 'B6', 'B8']:
         return 6
     if 'APARTMENT' in desc or 'MULTI FAMILY' in desc or code in ['A52', 'B2']:
-        return 12  # Standard conservative baseline placeholder for raw multi-family parcels
+        return 12  
     return 0
 
 def process_district_capacity(district_num, user_levers, land_use_map):
@@ -63,9 +63,7 @@ def process_district_capacity(district_num, user_levers, land_use_map):
     if parcels.crs.is_geographic:
         parcels = parcels.to_crs(epsg=32139)
 
-    # -------------------------------------------------------------------------
-    # SPATIAL ONDEMAND TOGGLE MASKS (Historic & Context Area)
-    # -------------------------------------------------------------------------
+    # Spatial Joins for Historic & Context Toggles
     if user_levers.get('filter_exclude_historic', False):
         historic_path = os.path.join(DATA_DIR, "historic.geojson")
         if os.path.exists(historic_path):
@@ -88,11 +86,9 @@ def process_district_capacity(district_num, user_levers, land_use_map):
     if parcels.empty:
         return None
 
-    # Identify or build spatial lot sizes dynamically
     if 'LotArea' not in parcels.columns or parcels['LotArea'].sum() == 0:
         parcels['LotArea'] = parcels['geometry'].area * 10.7639 
 
-    # Dynamic Column Mappings
     pid_options = [c for c in parcels.columns if any(x in c.lower() for x in ['pid', 'id', 'objectid', 'parcel'])]
     pid_col = pid_options[0] if pid_options else None
 
@@ -104,18 +100,13 @@ def process_district_capacity(district_num, user_levers, land_use_map):
     else:
         parcels['USE_DESC'] = "Unknown"
 
-    # Initialize capacity tracks
     parcels['sim_units'] = 0
     parcels['sim_jobs'] = 0
-
-    # Ensure columns exist initially to prevent KeyError crashes if joins yield nothing
     parcels['total_footprint_area'] = 0.0
     parcels['total_interior_area'] = 0.0
 
-    # Parse footprint geometry
     if os.path.exists(footprint_file):
         footprints = gpd.read_file(footprint_file).to_crs(parcels.crs)
-        
         if not footprints.empty:
             height_col = [c for c in footprints.columns if any(x in c.lower() for x in ['height', 'story', 'stories', 'bldghgt'])]
             if height_col:
@@ -134,10 +125,7 @@ def process_district_capacity(district_num, user_levers, land_use_map):
                     calc_footprint_area=('geometry', lambda x: x.area.sum() * 10.7639),
                     calc_interior_area=('gross_interior_sqft', 'sum')
                 ).reset_index()
-                
-                # Drop structural columns out first before re-merging to prevent double assignment
-                parcels = parcels.drop(columns=['total_footprint_area', 'total_interior_area'])
-                parcels = parcels.merge(footprint_agg, on=pid_col, how='left')
+                parcels = parcels.drop(columns=['total_footprint_area', 'total_interior_area']).merge(footprint_agg, on=pid_col, how='left')
                 parcels = parcels.rename(columns={'calc_footprint_area': 'total_footprint_area', 'calc_interior_area': 'total_interior_area'})
             else:
                 footprints_joined = gpd.sjoin(footprints, parcels[[pid_col or 'geometry', 'geometry']].reset_index(), how="inner", predicate="within")
@@ -146,28 +134,19 @@ def process_district_capacity(district_num, user_levers, land_use_map):
                         calc_footprint_area=('geometry', lambda x: x.area.sum() * 10.7639),
                         calc_interior_area=('gross_interior_sqft', 'sum')
                     ).reset_index().set_index('index')
-                    
-                    parcels = parcels.drop(columns=['total_footprint_area', 'total_interior_area'])
-                    parcels = parcels.join(footprint_agg, how='left')
+                    parcels = parcels.drop(columns=['total_footprint_area', 'total_interior_area']).join(footprint_agg, how='left')
                     parcels = parcels.rename(columns={'calc_footprint_area': 'total_footprint_area', 'calc_interior_area': 'total_interior_area'})
-
-    # Safe fallback formatting assignment guarantee
-    if 'total_footprint_area' not in parcels.columns:
-        parcels['total_footprint_area'] = 0.0
-    if 'total_interior_area' not in parcels.columns:
-        parcels['total_interior_area'] = 0.0
 
     parcels['total_footprint_area'] = parcels['total_footprint_area'].fillna(0.0)
     parcels['total_interior_area'] = parcels['total_interior_area'].fillna(0.0)
-
-    # Calculate Lot Coverage / Building footprint ratio to flag underutilized property
     parcels['lot_coverage_pct'] = parcels['total_footprint_area'] / parcels['LotArea']
 
     # -------------------------------------------------------------------------
-    # SCENARIO SIMULATION CALCULATION CORE ENGINE
+    # SCENARIO CALCULATIONS CORE WITH PRIORITY CASCADE MUTUAL EXCLUSIVITY
     # -------------------------------------------------------------------------
     zoning_cols = [c for c in parcels.columns if any(x in c.lower() for x in ['zon', 'label', 'class', 'dist'])]
     absorption = user_levers.get('market_absorption_rate', 1.0)
+    redev_mode = user_levers.get('commercial_redevelopment_mode', 'Preserve Current Base Use')
     
     for idx, parcel in parcels.iterrows():
         zoning = str(parcel.get(zoning_cols[0], '')).upper() if zoning_cols else ''
@@ -176,16 +155,13 @@ def process_district_capacity(district_num, user_levers, land_use_map):
         lot_area = parcel.get('LotArea', 0)
         coverage = parcel.get('lot_coverage_pct', 0)
         
-        # Determine vacancy status explicitly
         is_vacant = any(x in state_cd for x in ['A7', 'A8', 'C1', 'C10', 'C3', 'C6', 'C7', 'C8']) or 'VACANT' in land_use
-        is_underutilized = coverage < 0.15 # Building uses less than 15% of total lot footprint (mostly parking or yard space)
+        is_underutilized = coverage < 0.15 
         
-        # REALISM LEVER FILTER: Skip built-out properties if checked on the dashboard
         if user_levers.get('only_vacant_or_underutilized', False):
             if not (is_vacant or is_underutilized):
-                continue # Skip redevelopment math entirely on stable properties
+                continue 
         
-        # Calculate baseline tracking
         existing_units = estimate_existing_units(land_use, state_cd)
         
         is_residential = any(x in zoning for x in ['R', 'A', 'RES', 'SF', 'TH']) or any(x in land_use for x in ['RESIDENTIAL', 'SINGLE-FAMILY', 'DUPLEX', 'MULTI'])
@@ -197,40 +173,66 @@ def process_district_capacity(district_num, user_levers, land_use_map):
         gross_sim_units = 0
         gross_sim_jobs = 0
 
+        # STREAM 1: RESIDENTIAL LAND PARCELS (MUTUALLY EXCLUSIVE CASCADE LOGIC)
         if is_residential:
-            if user_levers['allow_conversions'] and parcel['total_interior_area'] >= 2000:
+            policy_applied = False
+            
+            # Priority 1: Allow Mansion Conversions (Usurps other policies if active and structure is huge)
+            if user_levers.get('allow_conversions', False) and parcel['total_interior_area'] >= 2,000:
                 usable_interior = parcel['total_interior_area'] * 0.85
                 gross_sim_units = max(existing_units, int(usable_interior // CONVERSION_UNIT_SIZE))
-            elif user_levers['allow_lot_splits'] and lot_area >= user_levers['lot_split_trigger_size']:
-                max_possible_lots = int(lot_area // user_levers['lot_split_min_floor'])
-                gross_sim_units = max_possible_lots * (2 if user_levers['allow_townhomes'] else 1)
-            elif user_levers['allow_middle_housing']:
-                if user_levers['middle_housing_tier'] == '9-16' and lot_area >= 6000:
+                policy_applied = True
+                
+            # Priority 2: Lot Splits (Runs if Conversions failed/skipped, and lot is big enough)
+            if not policy_applied and user_levers.get('allow_lot_splits', False) and lot_area >= user_levers.get('lot_split_trigger_size', 4000):
+                max_possible_lots = int(lot_area // user_levers.get('lot_split_min_floor', 2000))
+                gross_sim_units = max_possible_lots * (2 if user_levers.get('allow_townhomes', False) else 1)
+                policy_applied = True
+                
+            # Priority 3: Middle Housing Typology Overlays (Runs if parcel was not split or converted)
+            if not policy_applied and user_levers.get('allow_middle_housing', False):
+                tier = user_levers.get('middle_housing_tier', '4-plex')
+                if tier == '9-16' and lot_area >= 6000:
                     gross_sim_units = 16
-                elif user_levers['middle_housing_tier'] == '5-8' and lot_area >= 5000:
+                elif tier == '5-8' and lot_area >= 5000:
                     gross_sim_units = 8
                 else:
                     gross_sim_units = 4 
-            else:
+                policy_applied = True
+            
+            # Baseline Catch: If no high-density policy applied, inherit existing physical site infrastructure unit count
+            if Pis_residential and not policy_applied:
                 gross_sim_units = existing_units
 
-            if user_levers['allow_adus'] and gross_sim_units <= 1:
+            # Accessory Dwelling Units Addendum (Can append only to single standalone single-family homes)
+            if user_levers.get('allow_adus', False) and gross_sim_units <= 1:
                 if open_lot_space >= 800: 
                     gross_sim_units += 1
+            
+            gross_sim_jobs = 0
 
+        # STREAM 2: COMMERCIAL LAND PARCELS
         elif is_commercial:
-            if user_levers['allow_midrise']:
-                num_floors = user_levers['midrise_stories']
-                buildable_footprint = lot_area * 0.50 * parking_efficiency 
+            num_floors = user_levers.get('midrise_stories', 4)
+            buildable_footprint = lot_area * 0.50 * parking_efficiency if user_levers.get('allow_midrise', False) else lot_area * 0.40 * parking_efficiency
+            
+            if redev_mode == 'Vertical Mixed-Use' and user_levers.get('allow_midrise', False):
                 gross_sim_jobs = int(buildable_footprint // SQ_FT_PER_EMPLOYEE)
                 gross_sim_units = int((buildable_footprint * (num_floors - 1)) // AVG_UNIT_SIZE)
-            else:
-                buildable_footprint = lot_area * 0.40 * parking_efficiency
-                gross_sim_jobs = int(buildable_footprint // SQ_FT_PER_EMPLOYEE)
+            elif redev_mode == 'Pure Residential Infill':
+                gross_sim_jobs = 0
+                total_residential_floors = num_floors if user_levers.get('allow_midrise', False) else 1
+                gross_sim_units = int((buildable_footprint * total_residential_floors) // AVG_UNIT_SIZE)
+            elif redev_mode == 'Pure Commercial Jobs':
+                gross_sim_units = 0
+                total_commercial_floors = num_floors if user_levers.get('allow_midrise', False) else 1
+                gross_sim_jobs = int((buildable_footprint * total_commercial_floors) // SQ_FT_PER_EMPLOYEE)
+            elif redev_mode == 'Preserve Current Base Use':
+                gross_sim_units = 0
+                total_commercial_floors = num_floors if user_levers.get('allow_midrise', False) else 1
+                gross_sim_jobs = int((buildable_footprint * total_commercial_floors) // SQ_FT_PER_EMPLOYEE)
 
-        # Apply Net Gain Deduction and Absorption Slider Scaling
         net_new_units = max(0, gross_sim_units - existing_units)
-        
         parcels.at[idx, 'sim_units'] = int(net_new_units * absorption)
         parcels.at[idx, 'sim_jobs'] = int(gross_sim_jobs * absorption)
 
@@ -239,63 +241,33 @@ def process_district_capacity(district_num, user_levers, land_use_map):
 def run_master_simulation(user_levers):
     """Loops through all representative districts and aggregates results."""
     land_use_map = load_land_use_mapping()
-    
     total_housing_units = 0
     total_jobs = 0
 
-    print("\n========================================================")
-    print(" 🚀 RUNNING CITY-WIDE HOUSING POLICY STRATEGY ENGINE")
-    print("========================================================")
-    print(f" -> Setting Filter [Only Vacant/Underutilized]: {user_levers['only_vacant_or_underutilized']}")
-    print(f" -> Setting Slider [Market Absorption Rate]: {user_levers['market_absorption_rate'] * 100}% Build-out Horizon")
-    print("--------------------------------------------------------")
-
     target_districts = user_levers.get('active_representative_districts', list(range(1, 9)))
-
     for dist in target_districts:
         processed_gdf = process_district_capacity(dist, user_levers, land_use_map)
-        
         if processed_gdf is not None:
-            dist_units = processed_gdf['sim_units'].sum()
-            dist_jobs = processed_gdf['sim_jobs'].sum()
-            
-            total_housing_units += dist_units
-            total_jobs += dist_jobs
-            
-            print(f"   District {dist} -> Net Gain Yield: +{dist_units:,} Units | +{dist_jobs:,} Job Spaces")
-        else:
-            print(f"   District {dist} -> Net Gain Yield: +0 Units | +0 Job Spaces (Filtered out completely)")
+            total_housing_units += processed_gdf['sim_units'].sum()
+            total_jobs += processed_gdf['sim_jobs'].sum()
 
-    print("\n========================================================")
-    print(" 📊 EXECUTIVE REALISTIC CALCULATION HUD")
-    print("========================================================")
-    print(f"REALISTIC NET HOUSING CAPACITY YIELD : +{total_housing_units:,} Units")
-    print(f"REALISTIC NET EMPLOYMENT CAPACITY YIELD : +{total_jobs:,} Jobs")
-    print("========================================================\n")
+    print(f"Units Yielded: {total_housing_units} | Jobs Yielded: {total_jobs}")
 
 if __name__ == "__main__":
-    # Test adjustable dashboard simulation setup
     test_scenario_levers = {
         'eliminate_parking': True,            
         'allow_adus': True,                   
         'allow_lot_splits': True,             
-        'lot_split_trigger_size': 4000,       
-        'lot_split_min_floor': 2000,          
         'allow_townhomes': True,              
-        'allow_conversions': True,            
+        'allow_conversions': False,            
         'allow_middle_housing': True,         
         'middle_housing_tier': '5-8',        
         'allow_midrise': True,                
         'midrise_stories': 4,
-        
-        # --- ADJUSTABLE REALISM LEVER SLIDERS & TOGGLES ---
-        'only_vacant_or_underutilized': True,    # Turn ON (True) or OFF (False) to isolate vacant/parking lot infill
-        'market_absorption_rate': 0.10,         # Slider Simulation (0.10 = Assume only 10% owners build over 20 years)
-        
-        # --- SPATIAL FILTERS ---
+        'only_vacant_or_underutilized': True,    
+        'market_absorption_rate': 0.10,         
+        'commercial_redevelopment_mode': 'Preserve Current Base Use', 
         'filter_exclude_historic': False,            
-        'filter_context_area': 'All',                
-        'active_representative_districts': [1, 2, 3, 4, 5, 6, 7, 8] 
+        'filter_context_area': 'All'
     }
-    
     run_master_simulation(test_scenario_levers)

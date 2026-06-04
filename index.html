@@ -311,9 +311,14 @@
             logToTerminal(`Applying Geopandas capacity math...`);
 
             try {
-                // CRITICAL FIX: Send the JSON payload wrapped in single quotes so Python parses it safely.
-                const jsonStr = await pyodideInstance.runPythonAsync(`run_simulation('${JSON.stringify(levers)}')`);
+                // Ensure Python handles the single quotes safely by converting JSON exactly
+                const jsonPayload = JSON.stringify(levers);
+                const jsonStr = await pyodideInstance.runPythonAsync(`run_simulation('${jsonPayload}')`);
                 const results = JSON.parse(jsonStr);
+
+                if (results.error) {
+                    throw new Error(results.error);
+                }
 
                 // Update Stats
                 document.getElementById('housing-yield').textContent = results.totals.units.toLocaleString();

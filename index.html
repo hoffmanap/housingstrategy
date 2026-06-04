@@ -9,319 +9,264 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f4f7f6;
-        }
-
-        /* Sidebar Styling */
-        #sidebar {
-            width: 380px;
-            background: #ffffff;
-            padding: 25px;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            z-index: 1000; /* High z-index to sit above Leaflet map controls */
-            display: flex;
-            flex-direction: column;
-        }
-
-        h2 { font-size: 18px; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px;}
-        h3 { font-size: 15px; color: #555; margin-top: 20px; margin-bottom: 10px;}
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f4f7f6; }
         
-        /* Tooltip CSS */
-        .tooltip-icon {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-            margin-left: 8px;
-            color: #007bff;
-            font-weight: bold;
-            font-size: 14px;
-        }
+        #sidebar { width: 420px; background: #ffffff; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; z-index: 1000; }
+        #map { flex-grow: 1; position: relative; }
 
-        .tooltip-icon .tooltip-text {
-            visibility: hidden;
-            width: 240px;
-            background-color: #2c3e50;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 10px;
-            position: absolute;
-            z-index: 2000;
-            bottom: 130%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 12px;
-            font-weight: normal;
-            line-height: 1.4;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
-            pointer-events: none; /* Prevents tooltip from interfering with clicks */
-        }
-
-        .tooltip-icon .tooltip-text::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #2c3e50 transparent transparent transparent;
-        }
-
-        .tooltip-icon:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .policy-lever {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            font-size: 14px;
-            color: #444;
-        }
-
-        input[type="checkbox"] { margin-right: 10px; cursor: pointer; width: 16px; height: 16px;}
+        h2 { font-size: 18px; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 0;}
+        h3 { font-size: 14px; color: #555; margin-top: 15px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;}
         
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 15px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 25px;
-            transition: background 0.3s;
-            box-shadow: 0 2px 4px rgba(0,123,255,0.2);
-        }
+        .control-group { margin-bottom: 12px; display: flex; align-items: center; font-size: 13px; color: #444; }
+        .control-group label { flex-grow: 1; }
+        input[type="checkbox"] { margin-right: 8px; cursor: pointer; }
+        select, input[type="number"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
         button:hover { background-color: #0056b3; }
 
-        .results {
-            margin-top: 25px;
-            padding: 20px;
-            background: #e9ecef;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
+        .results { margin-top: 20px; background: #e9ecef; border-radius: 8px; padding: 15px; border-left: 4px solid #007bff; }
+        
+        /* District Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { padding: 6px; text-align: right; border-bottom: 1px solid #ddd; }
+        th { background-color: #dee2e6; font-weight: bold; }
+        td:first-child, th:first-child { text-align: left; }
+        .total-row { font-weight: bold; background-color: #d6dce1; }
 
-        .results p { margin: 10px 0; font-size: 15px; }
-
-        /* Map Container */
-        #map {
-            flex-grow: 1;
-            position: relative;
-        }
-
-        #loading-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 12px 20px;
-            border-radius: 6px;
-            font-weight: bold;
-            color: #333;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-left: 4px solid #f39c12;
-        }
+        /* Map UI Elements */
+        #loading { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); padding: 10px 15px; border-radius: 4px; font-weight: bold; z-index: 1000; display: none; }
+        .info.legend { background: white; padding: 10px; line-height: 1.5; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h2>El Paso Housing Simulator</h2>
-        
-        <h3>Context & Constraints</h3>
-        <div class="policy-lever">
-            <input type="checkbox" id="filter_historic" checked>
-            <label for="filter_historic">Protect Historic Districts</label>
-            <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Excludes parcels within designated historic districts from receiving new high-density development capacity.</span>
-            </span>
-        </div>
-        <div class="policy-lever">
-            <input type="checkbox" id="filter_context" checked>
-            <label for="filter_context">Restrict to Context Areas</label>
-            <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Limits development simulations to specific designated growth and context areas within the city.</span>
-            </span>
+        <h2>Housing Strategy Simulator</h2>
+
+        <h3>1. Base Scenario</h3>
+        <div class="control-group">
+            <select id="scenario_select" style="width: 100%;">
+                <option value="current">Current Land Use Stays</option>
+                <option value="residential">Residential Only</option>
+                <option value="commercial">Commercial Only</option>
+                <option value="mixed">Vertical Mixed Use</option>
+            </select>
         </div>
 
-        <h3>Policy Interventions</h3>
-        
-        <div class="policy-lever">
-            <input type="checkbox" id="residential_conversions">
-            <label for="residential_conversions">Residential Conversions</label>
-            <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Permits the subdivision of existing large residential structures into multiple smaller units.</span>
-            </span>
+        <h3>2. Filters & Constraints</h3>
+        <div class="control-group">
+            <label>Context Area:</label>
+            <select id="filter_context">
+                <option value="all">All Contexts</option>
+                <option value="urban">Urban Only</option>
+                <option value="suburban">Suburban Only</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <input type="checkbox" id="filter_transit">
+            <label for="filter_transit">Transit Corridors Only</label>
+        </div>
+        <div class="control-group">
+            <label>Absorption Rate (%):</label>
+            <input type="number" id="absorption_rate" value="10" min="1" max="100" style="width: 60px;">
         </div>
 
-        <div class="policy-lever">
+        <h3>3. Policy Interventions</h3>
+        <div class="control-group"><input type="checkbox" id="allow_adus"><label>Allow ADUs</label></div>
+        <div class="control-group"><input type="checkbox" id="allow_lot_splits"><label>Allow Lot Splits</label></div>
+        <div class="control-group"><input type="checkbox" id="elim_parking"><label>Eliminate Off-Street Parking Mins</label></div>
+        <div class="control-group"><input type="checkbox" id="mm_4_8"><label>Missing Middle (4-8 Units)</label></div>
+        <div class="control-group"><input type="checkbox" id="mm_8_16"><label>Missing Middle (8-16 Units)</label></div>
+        <div class="control-group">
             <input type="checkbox" id="allow_midrise">
-            <label for="allow_midrise">Allow Commercial Midrise</label>
-            <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Allows underutilized commercial parcels to be redeveloped into 5-story mixed-use buildings.</span>
-            </span>
+            <label>Midrise Conversions</label>
+            <select id="midrise_floors" style="width: 80px;">
+                <option value="2">2 Floors</option>
+                <option value="3">3 Floors</option>
+                <option value="4">4 Floors</option>
+                <option value="5" selected>5 Floors</option>
+            </select>
         </div>
 
-        <div class="policy-lever">
-            <input type="checkbox" id="missing_middle">
-            <label for="missing_middle">Missing Middle Housing</label>
-            <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Permits multi-unit structures like duplexes and triplexes in traditional single-family zones.</span>
-            </span>
-        </div>
-
-        <button onclick="runSimulation()">Run Capacity Simulation</button>
+        <button onclick="runSimulation()">Run Capacity Simulator</button>
 
         <div class="results">
-            <h3 style="margin-top: 0; border: none; padding: 0;">Projected Impact</h3>
-            <p><strong>New Housing Units:</strong> <span id="out-units" style="color: #007bff; font-weight: bold; font-size: 18px;">0</span></p>
-            <p><strong>New Jobs:</strong> <span id="out-jobs" style="color: #28a745; font-weight: bold; font-size: 18px;">0</span></p>
+            <h3 style="margin-top: 0;">Projected Impact</h3>
+            <table>
+                <thead>
+                    <tr><th>District</th><th>New Units</th><th>New Jobs</th></tr>
+                </thead>
+                <tbody id="results-body">
+                    </tbody>
+                <tfoot>
+                    <tr class="total-row"><td>TOTAL</td><td id="total-units">0</td><td id="total-jobs">0</td></tr>
+                </tfoot>
+            </table>
         </div>
     </div>
 
     <div id="map">
-        <div id="loading-indicator">Loading District Data...</div>
+        <div id="loading">Loading Parcel Data...</div>
     </div>
 
     <script>
-        // --- 1. INITIALIZE LEAFLET MAP ---
         const map = L.map('map').setView([31.7619, -106.4850], 11);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-        // Polished Light Basemap (CartoDB Positron - No tokens required)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 20
-        }).addTo(map);
-
-        // Global arrays to hold the raw data and the map layer
         let allParcels = [];
         let geojsonLayer = L.geoJSON(null, {
-            style: {
-                color: "#2980b9",
-                weight: 1,
-                fillOpacity: 0.1,
-                fillColor: "#3498db"
-            }
+            style: { color: "#95a5a6", weight: 1, fillOpacity: 0.2, fillColor: "#bdc3c7" }
         }).addTo(map);
 
-        // --- 2. LOAD DISTRICT DATA (1 through 8) ---
-        async function loadDistrictData() {
-            const loadingIndicator = document.getElementById('loading-indicator');
-            loadingIndicator.style.display = 'block';
-            
-            let filesLoaded = 0;
+        // Map Legend
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            div.innerHTML = `
+                <b>Map Legend</b><br>
+                <i style="background: #2980b9"></i> High Housing Potential<br>
+                <i style="background: #7fb3d5"></i> Low Housing Potential<br>
+                <i style="background: #d35400"></i> High Job Potential<br>
+                <i style="background: #e59866"></i> Low Job Potential<br>
+                <i style="background: #bdc3c7"></i> No New Capacity
+            `;
+            return div;
+        };
+        legend.addTo(map);
 
+        // Load Data
+        async function loadData() {
+            document.getElementById('loading').style.display = 'block';
             for (let i = 1; i <= 8; i++) {
-                const fileName = `data/Ready_Parcels_D${i}.geojson`;
                 try {
-                    const response = await fetch(fileName); 
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.features) {
-                            allParcels = allParcels.concat(data.features);
-                            geojsonLayer.addData(data); // Add to Leaflet Map
-                            filesLoaded++;
-                        }
-                    } else {
-                        console.warn(`Could not load ${fileName}`);
+                    const res = await fetch(`data/Ready_Parcels_D${i}.geojson`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Tag each parcel with its district so we can group results later
+                        data.features.forEach(f => f.properties._district = i); 
+                        allParcels = allParcels.concat(data.features);
+                        geojsonLayer.addData(data);
                     }
-                } catch (error) {
-                    console.error(`Error fetching ${fileName}:`, error);
-                }
+                } catch (e) { console.error(`Failed D${i}`); }
             }
-            
-            if (filesLoaded > 0) {
-                // Adjust map view to fit the loaded data
-                map.fitBounds(geojsonLayer.getBounds());
-            }
-
-            loadingIndicator.style.borderLeftColor = "#28a745";
-            loadingIndicator.innerText = `Loaded ${allParcels.length} parcels across ${filesLoaded} districts.`;
-            setTimeout(() => { loadingIndicator.style.display = 'none'; }, 3500);
+            document.getElementById('loading').style.display = 'none';
         }
 
-        // --- 3. SIMULATION LOGIC ---
+        // SIMULATION ENGINE
         function runSimulation() {
-            let totalUnits = 0;
-            let totalJobs = 0;
+            // 1. Gather UI Inputs
+            const scenario = document.getElementById('scenario_select').value;
+            const contextFilter = document.getElementById('filter_context').value;
+            const transitOnly = document.getElementById('filter_transit').checked;
+            const absorption = parseFloat(document.getElementById('absorption_rate').value) / 100;
 
-            // Get state of Policy Levers
-            const resConversionsActive = document.getElementById('residential_conversions').checked;
-            const midriseActive = document.getElementById('allow_midrise').checked;
-            const missingMiddleActive = document.getElementById('missing_middle').checked;
+            const adus = document.getElementById('allow_adus').checked;
+            const lotSplits = document.getElementById('allow_lot_splits').checked;
+            const elimParking = document.getElementById('elim_parking').checked;
+            const mm48 = document.getElementById('mm_4_8').checked;
+            const mm816 = document.getElementById('mm_8_16').checked;
+            const midrise = document.getElementById('allow_midrise').checked;
+            const midriseFloors = parseInt(document.getElementById('midrise_floors').value);
 
-            // Get state of Constraints/Filters
-            const protectHistoric = document.getElementById('filter_historic').checked;
-            const restrictContext = document.getElementById('filter_context').checked;
+            // Setup tracking array for the 8 districts
+            let districtTotals = { 1:{u:0,j:0}, 2:{u:0,j:0}, 3:{u:0,j:0}, 4:{u:0,j:0}, 5:{u:0,j:0}, 6:{u:0,j:0}, 7:{u:0,j:0}, 8:{u:0,j:0} };
 
+            // 2. Loop through all parcels
             allParcels.forEach(parcel => {
                 const props = parcel.properties;
+                const d = props._district;
+                
+                // --- FILTERS ---
+                // Replace 'context_type' and 'in_transit' with your actual GeoJSON column names!
+                if (contextFilter !== 'all' && props.context_type !== contextFilter) return;
+                if (transitOnly && !props.in_transit) return;
 
-                // FIX FOR 'includes' ERROR: Safely default to an empty string if property is null
-                const zoning = props.zoning || '';
-                const landUse = props.land_use || '';
-                const isHistoric = props.is_historic === 1 || props.is_historic === true;
-                const isContext = props.in_context_area === 1 || props.in_context_area === true;
+                // Safely read land use
+                const landUse = (props.land_use || '').toUpperCase();
+                let isRes = landUse.includes('RES');
+                let isCom = landUse.includes('COM');
 
-                // Apply Filters: Skip parcel if it violates a checked constraint
-                if (protectHistoric && isHistoric) return; 
-                if (restrictContext && !isContext) return;
+                // Overwrite designations based on Scenario
+                if (scenario === 'residential') { isRes = true; isCom = false; }
+                if (scenario === 'commercial') { isRes = false; isCom = true; }
+                if (scenario === 'mixed') { isRes = true; isCom = true; }
 
-                // Math: Residential capacity
-                if (zoning?.includes('RES') || landUse?.includes('RES')) {
-                    if (resConversionsActive && props.lot_size_sqft > 8000) {
-                        totalUnits += 3; 
-                    }
-                    if (missingMiddleActive) {
-                        totalUnits += 4; 
+                let parcelUnits = 0;
+                let parcelJobs = 0;
+
+                // --- APPLY POLICIES ---
+                if (isRes) {
+                    if (adus) parcelUnits += 1;
+                    if (lotSplits && props.lot_size_sqft > 10000) parcelUnits += 2;
+                    if (mm48) parcelUnits += 6; // Avg of 4-8
+                    if (mm816) parcelUnits += 12; // Avg of 8-16
+                    if (elimParking) parcelUnits += 1; // Assuming lack of parking frees up space for 1 unit
+                }
+
+                if (isCom) {
+                    if (midrise) {
+                        // Math: ground floor is jobs, upper floors are units
+                        parcelJobs += 15; 
+                        parcelUnits += (midriseFloors - 1) * 10; 
                     }
                 }
 
-                // Math: Commercial capacity
-                if (zoning?.includes('COM') || landUse?.includes('COM')) {
-                    if (midriseActive) {
-                        totalUnits += 25; 
-                        totalJobs += 10;  
-                    }
+                // Apply Absorption Rate to this specific parcel
+                parcelUnits = Math.round(parcelUnits * absorption);
+                parcelJobs = Math.round(parcelJobs * absorption);
+
+                // Save results back to parcel for map styling
+                parcel.properties._calcUnits = parcelUnits;
+                parcel.properties._calcJobs = parcelJobs;
+
+                // Add to district totals
+                if (districtTotals[d]) {
+                    districtTotals[d].u += parcelUnits;
+                    districtTotals[d].j += parcelJobs;
                 }
             });
 
-            // Update UI with calculated numbers
-            document.getElementById('out-units').innerText = totalUnits.toLocaleString();
-            document.getElementById('out-jobs').innerText = totalJobs.toLocaleString();
-            
-            // Visual feedback on the button
-            const btn = document.querySelector('button');
-            const originalText = btn.innerText;
-            btn.innerText = "Simulation Complete!";
-            btn.style.backgroundColor = "#28a745";
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.style.backgroundColor = "#007bff";
-            }, 2000);
+            // 3. Update Results Table
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+            let grandUnits = 0; let grandJobs = 0;
+
+            for (let i = 1; i <= 8; i++) {
+                const u = districtTotals[i].u;
+                const j = districtTotals[i].j;
+                grandUnits += u; grandJobs += j;
+                
+                tbody.innerHTML += `<tr><td>District ${i}</td><td>${u.toLocaleString()}</td><td>${j.toLocaleString()}</td></tr>`;
+            }
+            document.getElementById('total-units').innerText = grandUnits.toLocaleString();
+            document.getElementById('total-jobs').innerText = grandJobs.toLocaleString();
+
+            // 4. Update Map Colors based on generated capacity
+            geojsonLayer.eachLayer(layer => {
+                const u = layer.feature.properties._calcUnits || 0;
+                const j = layer.feature.properties._calcJobs || 0;
+                
+                let fillColor = "#bdc3c7"; // Default gray (no capacity)
+                let fillOpacity = 0.2;
+
+                // Dual Color Ramp Logic
+                if (u > j) {
+                    // Housing heavy: Blue scale
+                    fillColor = u > 10 ? "#2980b9" : "#7fb3d5";
+                    fillOpacity = u > 0 ? 0.7 : 0.2;
+                } else if (j > 0 && j >= u) {
+                    // Job heavy: Orange scale
+                    fillColor = j > 10 ? "#d35400" : "#e59866";
+                    fillOpacity = 0.7;
+                }
+
+                layer.setStyle({ fillColor: fillColor, fillOpacity: fillOpacity });
+            });
         }
 
-        // Load data automatically when the map is ready
-        window.onload = loadDistrictData;
+        window.onload = loadData;
     </script>
 </body>
 </html>

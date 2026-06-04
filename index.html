@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>El Paso Housing Strategy Simulator</title>
+    
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
+
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
+            padding: 0;
             display: flex;
             height: 100vh;
             background-color: #f4f7f6;
@@ -21,6 +26,8 @@
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
             overflow-y: auto;
             z-index: 10;
+            display: flex;
+            flex-direction: column;
         }
 
         h2 { font-size: 20px; color: #333; margin-bottom: 20px; }
@@ -105,14 +112,22 @@
             border-radius: 8px;
         }
 
-        /* Map Placeholder Styling */
+        /* Map Container */
         #map {
             flex-grow: 1;
-            background-color: #dbe2e6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #6c757d;
+            position: relative;
+        }
+
+        #loading-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            z-index: 100;
+            display: none;
         }
     </style>
 </head>
@@ -125,7 +140,7 @@
             <input type="checkbox" id="residential_conversions">
             <label for="residential_conversions">Residential Conversions</label>
             <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Permits the subdivision of existing large residential structures (mansions/estates) into multiple smaller, affordable units.</span>
+                <span class="tooltip-text">Permits the subdivision of existing large residential structures into multiple smaller units.</span>
             </span>
         </div>
 
@@ -133,7 +148,7 @@
             <input type="checkbox" id="allow_midrise">
             <label for="allow_midrise">Allow Commercial Midrise</label>
             <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Allows underutilized commercial parcels to be redeveloped into 5-story mixed-use buildings (jobs on ground floor, housing above).</span>
+                <span class="tooltip-text">Allows underutilized commercial parcels to be redeveloped into 5-story mixed-use buildings.</span>
             </span>
         </div>
 
@@ -141,7 +156,7 @@
             <input type="checkbox" id="missing_middle">
             <label for="missing_middle">Missing Middle Housing</label>
             <span class="tooltip-icon">ⓘ
-                <span class="tooltip-text">Permits multi-unit structures like duplexes, triplexes, and townhomes by-right in traditional single-family zones.</span>
+                <span class="tooltip-text">Permits multi-unit structures like duplexes and triplexes in traditional single-family zones.</span>
             </span>
         </div>
 
@@ -155,38 +170,89 @@
     </div>
 
     <div id="map">
-        <h2>Interactive Map Area</h2>
+        <div id="loading-indicator">Loading District Data...</div>
     </div>
 
     <script>
-        // Data holding array for the 8 districts
+        // --- MAP INITIALIZATION ---
+        // REPLACE WITH YOUR ACTUAL ACCESS TOKEN
+        mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE'; 
+        
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/light-v11',
+            center: [-106.4850, 31.7619], // Centered roughly on El Paso
+            zoom: 10
+        });
+
+        // Global variable to store all loaded parcel data
         let allParcels = [];
 
-        // 1. Fetch District Data (1 through 8)
+        // --- DATA LOADING ---
         async function loadDistrictData() {
+            document.getElementById('loading-indicator').style.display = 'block';
+            let loadedCount = 0;
+
+            // Fetch Districts 1 through 8 using the exact corrected naming convention
             for (let i = 1; i <= 8; i++) {
+                const fileName = `data/Ready_Parcels_D${i}.geojson`;
                 try {
-                    // Update this path if your files are named differently (e.g., Ready_Parcels_D1.geojson)
-                    const response = await fetch(`data/growthparcels${i}.geojson`); 
+                    const response = await fetch(fileName); 
                     if (response.ok) {
                         const data = await response.json();
                         if (data.features) {
                             allParcels = allParcels.concat(data.features);
+                            loadedCount++;
+                            
+                            // Visual: Add the loaded data to the map
+                            if (map.isStyleLoaded()) {
+                                addLayerToMap(data, i);
+                            } else {
+                                map.once('style.load', () => addLayerToMap(data, i));
+                            }
                         }
                         console.log(`Successfully loaded District ${i}`);
+                    } else {
+                        console.warn(`File not found: ${fileName} (Status: ${response.status})`);
                     }
                 } catch (error) {
-                    console.warn(`Could not load district ${i} - checking next file.`);
+                    console.error(`Error fetching ${fileName}:`, error);
                 }
             }
-            console.log("Total parcels loaded ready for simulation:", allParcels.length);
+            
+            document.getElementById('loading-indicator').innerText = `Loaded ${allParcels.length} total parcels ready for simulation.`;
+            setTimeout(() => { document.getElementById('loading-indicator').style.display = 'none'; }, 3000);
+            console.log(`Total parcels loaded ready for simulation: ${allParcels.length}`);
         }
 
-        // 2. Safely Run Simulation over Loaded Parcels
+        // Helper function to render GeoJSON on the map
+        function addLayerToMap(geojsonData, districtNum) {
+            const sourceId = `district-${districtNum}-source`;
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geojsonData
+                });
+
+                map.addLayer({
+                    id: `district-${districtNum}-layer`,
+                    type: 'fill',
+                    source: sourceId,
+                    paint: {
+                        'fill-color': '#007bff',
+                        'fill-opacity': 0.1,
+                        'fill-outline-color': '#0056b3'
+                    }
+                });
+            }
+        }
+
+        // --- SIMULATION LOGIC ---
         function runSimulation() {
             let totalUnits = 0;
             let totalJobs = 0;
 
+            // Get Policy Lever States
             const resConversionsActive = document.getElementById('residential_conversions').checked;
             const midriseActive = document.getElementById('allow_midrise').checked;
             const missingMiddleActive = document.getElementById('missing_middle').checked;
@@ -194,40 +260,39 @@
             allParcels.forEach(parcel => {
                 const props = parcel.properties;
 
-                // FIX FOR 'includes' ERROR: 
-                // Using Optional Chaining (?.) and falling back to empty string ('') if the column is null
+                // FIX FOR 'includes' ERROR: Safely default to an empty string if property is null
                 const zoning = props.zoning || '';
                 const landUse = props.land_use || '';
 
-                // Residential Math
+                // Residential Logic
                 if (zoning?.includes('RES') || landUse?.includes('RES')) {
                     if (resConversionsActive && props.lot_size_sqft > 8000) {
-                        totalUnits += 3; // Example: subdivides into 3 units
+                        totalUnits += 3; 
                     }
                     if (missingMiddleActive) {
-                        totalUnits += 4; // Example: 4-plex allowed
+                        totalUnits += 4; 
                     }
                 }
 
-                // Commercial / Midrise Math
+                // Commercial Logic
                 if (zoning?.includes('COM') || landUse?.includes('COM')) {
                     if (midriseActive) {
-                        totalUnits += 25; // Housing on upper floors
-                        totalJobs += 10;  // Jobs on ground floor
+                        totalUnits += 25; 
+                        totalJobs += 10;  
                     }
                 }
             });
 
-            // Update Dashboard
+            // Update Dashboard UI
             document.getElementById('out-units').innerText = totalUnits.toLocaleString();
             document.getElementById('out-jobs').innerText = totalJobs.toLocaleString();
-            console.log("Simulation complete!");
+            console.log("Capacity simulation executed successfully!");
         }
 
-        // Initialize the app by fetching data on load
-        window.onload = () => {
+        // Initialize Map and Load Data on Startup
+        map.on('load', () => {
             loadDistrictData();
-        };
+        });
     </script>
 </body>
 </html>

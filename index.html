@@ -1,5 +1,110 @@
-function runSimulation() {
-            // 1. Gather UI Inputs
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Paso Housing Strategy Simulator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f4f7f6; }
+        #sidebar { width: 420px; background: #ffffff; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; z-index: 1000; }
+        #map { flex-grow: 1; position: relative; }
+        h2 { font-size: 18px; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 0;}
+        h3 { font-size: 14px; color: #555; margin-top: 15px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .control-group { margin-bottom: 12px; display: flex; align-items: center; font-size: 13px; color: #444; }
+        .control-group label { flex-grow: 1; margin-left: 5px;}
+        input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px;}
+        select, input[type="number"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        button:hover { background-color: #0056b3; }
+        .results { margin-top: 20px; background: #e9ecef; border-radius: 8px; padding: 15px; border-left: 4px solid #007bff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { padding: 6px; text-align: right; border-bottom: 1px solid #ddd; }
+        th { background-color: #dee2e6; font-weight: bold; }
+        td:first-child, th:first-child { text-align: left; }
+        .total-row { font-weight: bold; background-color: #d6dce1; }
+        #loading { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); border-left: 4px solid #f39c12; padding: 10px 15px; border-radius: 4px; font-weight: bold; z-index: 1000; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Housing & Jobs Simulator</h2>
+
+        <h3>1. Base Scenario</h3>
+        <div class="control-group">
+            <select id="scenario_select" style="width: 100%;">
+                <option value="current">Current Land Use Stays</option>
+                <option value="residential">Residential Only</option>
+                <option value="commercial">Commercial Only</option>
+                <option value="mixed">Vertical Mixed Use</option>
+            </select>
+        </div>
+
+        <h3>2. Filters & Constraints</h3>
+        <div class="control-group">
+            <label>Rep District:</label>
+            <select id="filter_district"><option value="all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
+        </div>
+        <div class="control-group">
+            <input type="checkbox" id="filter_transit"><label>Transit Corridors Only</label>
+        </div>
+        <div class="control-group">
+            <input type="checkbox" id="filter_historic" checked><label>Protect Historic Districts</label>
+        </div>
+        <div class="control-group">
+            <label>Absorption Rate (%):</label>
+            <input type="number" id="absorption_rate" value="10" min="1" max="100" style="width: 60px;">
+        </div>
+
+        <h3>3. Policy Interventions</h3>
+        <div class="control-group"><input type="checkbox" id="allow_adus"><label>Allow ADUs</label></div>
+        <div class="control-group"><input type="checkbox" id="allow_lot_splits"><label>Allow Lot Splits</label></div>
+        <div class="control-group"><input type="checkbox" id="mm_4_8"><label>Missing Middle (4-8 Units)</label></div>
+        <div class="control-group"><input type="checkbox" id="mm_8_16"><label>Missing Middle (8-16 Units)</label></div>
+        <div class="control-group">
+            <input type="checkbox" id="allow_midrise"><label>Midrise Conversions</label>
+            <select id="midrise_floors"><option value="2">2 Floors</option><option value="3">3 Floors</option><option value="4">4 Floors</option><option value="5" selected>5 Floors</option></select>
+        </div>
+
+        <button onclick="runSimulation()">Run Capacity Simulator</button>
+
+        <div class="results">
+            <table>
+                <thead><tr><th>District</th><th>Units</th><th>Jobs</th></tr></thead>
+                <tbody id="results-body"></tbody>
+                <tfoot><tr class="total-row"><td>TOTAL</td><td id="total-units">0</td><td id="total-jobs">0</td></tr></tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div id="map"><div id="loading">Loading...</div></div>
+
+    <script>
+        const map = L.map('map').setView([31.7619, -106.4850], 11);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+        let allParcels = [];
+        let geojsonLayer = L.geoJSON(null, { style: { color: "#95a5a6", weight: 1, fillOpacity: 0.2, fillColor: "#bdc3c7" } }).addTo(map);
+
+        async function loadData() {
+            document.getElementById('loading').style.display = 'block';
+            for (let i = 1; i <= 8; i++) {
+                try {
+                    const res = await fetch(`data/Ready_Parcels_D${i}.geojson`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        allParcels = allParcels.concat(data.features);
+                        geojsonLayer.addData(data);
+                    }
+                } catch (e) { console.error(`Error loading D${i}`); }
+            }
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function runSimulation() {
             const scenario = document.getElementById('scenario_select').value;
             const distFilter = document.getElementById('filter_district').value;
             const transitOnly = document.getElementById('filter_transit').checked;
@@ -13,7 +118,6 @@ function runSimulation() {
             const midrise = document.getElementById('allow_midrise').checked;
             const midriseFloors = parseInt(document.getElementById('midrise_floors').value);
 
-            // Accumulate floats in these objects to prevent rounding errors
             let districtTotals = { 1:{u:0,j:0}, 2:{u:0,j:0}, 3:{u:0,j:0}, 4:{u:0,j:0}, 5:{u:0,j:0}, 6:{u:0,j:0}, 7:{u:0,j:0}, 8:{u:0,j:0} };
 
             allParcels.forEach(parcel => {
@@ -21,7 +125,6 @@ function runSimulation() {
                 const d = props.district; 
                 props._isVisible = true;
 
-                // FILTERS
                 if (distFilter !== 'all' && d.toString() !== distFilter) props._isVisible = false;
                 if (transitOnly && props.in_corridor !== true) props._isVisible = false;
                 if (protectHistoric && props.in_historic === true) props._isVisible = false;
@@ -34,74 +137,54 @@ function runSimulation() {
                     let isRes = zoning.includes('R') || zoning.includes('A') || zoning.includes('M') || zoning.includes('P'); 
                     let isCom = zoning.includes('C'); 
 
-                    // Scenario Overrides
                     if (scenario === 'residential') { isRes = true; isCom = false; }
                     else if (scenario === 'commercial') { isRes = false; isCom = true; }
                     else if (scenario === 'mixed') { isRes = true; isCom = true; }
 
-                    // --- HOUSING CALCULATION ---
                     if (isRes) {
                         if (adus) parcelUnits += 1;
                         if (lotSplits && props.targetlotarea > 8000) parcelUnits += 2; 
                         if (mm48) parcelUnits += 6; 
                         if (mm816) parcelUnits += 12; 
                     }
-
-                    // --- JOBS CALCULATION ---
                     if (isCom) {
-                        // BASELINE: All commercial parcels have a baseline job capacity
-                        // Even if Midrise is unchecked, we assume some baseline job density
+                        // Jobs are generated if commercial
                         parcelJobs += 5; 
-
-                        // POLICY: Midrise adds additional capacity
                         if (midrise) {
                             parcelJobs += 15; 
                             parcelUnits += (midriseFloors - 1) * 5; 
                         }
                     }
 
-                    // Accumulate RAW floats (Do not round here)
                     districtTotals[d].u += (parcelUnits * absorption);
                     districtTotals[d].j += (parcelJobs * absorption);
-
-                    // Store for map styling
-                    props._calcUnits = (parcelUnits * absorption);
-                    props._calcJobs = (parcelJobs * absorption);
                 }
+                props._calcUnits = (parcelUnits * absorption);
+                props._calcJobs = (parcelJobs * absorption);
             });
 
-            // 3. Update Results Table (Rounding only happens here)
             const tbody = document.getElementById('results-body');
             tbody.innerHTML = '';
             let grandUnits = 0; let grandJobs = 0;
-
             for (let i = 1; i <= 8; i++) {
                 if (distFilter !== 'all' && i.toString() !== distFilter) continue;
-
                 const u = Math.round(districtTotals[i].u);
                 const j = Math.round(districtTotals[i].j);
                 grandUnits += u; grandJobs += j;
-                
                 tbody.innerHTML += `<tr><td>D${i}</td><td>${u.toLocaleString()}</td><td>${j.toLocaleString()}</td></tr>`;
             }
             document.getElementById('total-units').innerText = grandUnits.toLocaleString();
             document.getElementById('total-jobs').innerText = grandJobs.toLocaleString();
 
-            // 4. Update Map
             geojsonLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
                 if (!props._isVisible) { layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; }
-                
                 const u = props._calcUnits || 0;
                 const j = props._calcJobs || 0;
-                
-                // Style based on dominant use
-                layer.setStyle({ 
-                    fillColor: (j > u) ? "#d35400" : (u > j ? "#2980b9" : "#bdc3c7"), 
-                    fillOpacity: (u+j > 0) ? 0.6 : 0.1,
-                    stroke: true,
-                    opacity: 1,
-                    weight: 0.5 
-                });
+                layer.setStyle({ fillColor: (j > u) ? "#d35400" : (u > j ? "#2980b9" : "#bdc3c7"), fillOpacity: (u+j > 0) ? 0.6 : 0.1, stroke: true, opacity: 1, weight: 0.5 });
             });
         }
+        window.onload = loadData;
+    </script>
+</body>
+</html>

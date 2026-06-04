@@ -2,81 +2,367 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>El Paso Housing Strategy Simulator</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        #map-canvas { border-radius: 0.75rem; z-index: 10; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-200">
-    <div class="p-6 max-w-7xl mx-auto">
-        <header class="mb-8 border-b border-slate-800 pb-4">
-            <h1 class="text-3xl font-bold text-white">El Paso Housing Strategy</h1>
-            <p class="text-slate-400">Policy Simulator & Mapping Dashboard</p>
-        </header>
+<body class="bg-[#0b1120] text-slate-200 font-sans antialiased min-h-screen flex flex-col">
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 h-fit">
-                <h2 class="font-bold mb-4">Policy Levers</h2>
-                <div class="space-y-4">
-                    <label class="flex items-center gap-2"><input type="checkbox" id="eliminate_parking" class="accent-emerald-500"> Eliminate Parking</label>
-                    <label class="flex items-center gap-2"><input type="checkbox" id="allow_lot_splits" class="accent-emerald-500"> Allow Lot Splits</label>
-                    <button id="run-btn" class="w-full bg-emerald-600 p-3 rounded font-bold hover:bg-emerald-500 transition">Run Simulation</button>
-                </div>
+    <header class="border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-md sticky top-0 z-[1000] px-6 py-4 shadow-md">
+        <div class="max-w-[1800px] mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    El Paso Housing Strategy <span class="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono uppercase">Simulation Hub</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Interactive Macro Policy Optimization & Exact Parcel Yield Mapping</p>
             </div>
-
-            <div class="lg:col-span-2">
-                <div id="map-canvas" class="h-96 w-full rounded-xl border border-slate-700 mb-4 bg-slate-900"></div>
-                <div class="bg-slate-900 p-6 rounded-xl border border-slate-700">
-                    <h2 class="font-bold mb-4">District Breakdown</h2>
-                    <table class="w-full text-left" id="results-table">
-                        <thead><tr class="text-slate-400 text-sm"><th>District</th><th>Units</th><th>Jobs</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div id="status-badge" class="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-lg border border-amber-500/20 font-mono animate-pulse shadow-inner">
+                Initializing WebAssembly Environment...
             </div>
         </div>
-    </div>
+    </header>
+
+    <main class="max-w-[1800px] mx-auto p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start flex-1 w-full">
+        
+        <section class="xl:col-span-3 bg-[#1e293b] border border-slate-700/50 rounded-2xl p-5 space-y-6 shadow-2xl h-fit sticky top-24">
+            
+            <div class="space-y-3">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">1. Realism & Scope</h3>
+                <label class="flex items-start space-x-3 cursor-pointer p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 transition">
+                    <input type="checkbox" id="only_vacant_or_underutilized" checked class="mt-1 w-4 h-4 accent-emerald-500 rounded">
+                    <div>
+                        <span class="text-xs font-semibold text-slate-100 block">Isolate Infill Opportunities</span>
+                        <span class="text-[10px] text-slate-400 block mt-0.5">Restrict simulation to vacant lots & parking spaces (&lt;15% footprint).</span>
+                    </div>
+                </label>
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-[11px] font-semibold text-slate-300">Market Absorption Factor</label>
+                        <span id="absorption-val" class="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-emerald-400">10%</span>
+                    </div>
+                    <input type="range" id="market_absorption_rate" min="1" max="100" value="10" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+                <div class="pt-2">
+                    <span class="text-[11px] font-semibold text-slate-300 block mb-1.5">Active Representative Districts</span>
+                    <div class="grid grid-cols-4 gap-1.5" id="district-checkboxes-container">
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="1" checked class="mr-1 accent-emerald-500">D1</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="2" checked class="mr-1 accent-emerald-500">D2</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="3" checked class="mr-1 accent-emerald-500">D3</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="4" checked class="mr-1 accent-emerald-500">D4</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="5" checked class="mr-1 accent-emerald-500">D5</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="6" checked class="mr-1 accent-emerald-500">D6</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="7" checked class="mr-1 accent-emerald-500">D7</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="8" checked class="mr-1 accent-emerald-500">D8</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-3 border-t border-slate-700/50">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">2. Neighborhood Infill</h3>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_conversions" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Mansion Conversions</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_lot_splits" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Lot Splits / Townhomes</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_adus" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Accessory Dwelling Units (ADUs)</span>
+                </label>
+                
+                <div class="bg-slate-800/50 p-2.5 rounded-lg border border-slate-700 mt-2">
+                    <label class="flex items-center space-x-3 cursor-pointer mb-2">
+                        <input type="checkbox" id="allow_middle_housing" class="w-4 h-4 accent-emerald-500">
+                        <span class="text-xs font-medium text-slate-200">Missing Middle Housing</span>
+                    </label>
+                    <select id="middle_housing_tier" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                        <option value="4-plex">Up to 4 Units (Quadplex)</option>
+                        <option value="8-plex">Up to 8 Units</option>
+                        <option value="16-plex">Up to 16 Units</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-3 border-t border-slate-700/50">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">3. Zoning & Corridors</h3>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="eliminate_parking" class="w-4 h-4 accent-cyan-500">
+                    <span class="text-xs font-medium text-slate-200">Eliminate Off-Street Parking Mandates</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_midrise" class="w-4 h-4 accent-cyan-500">
+                    <span class="text-xs font-medium text-slate-200">Allow Transit Corridor Midrise</span>
+                </label>
+                <div>
+                    <label class="text-[10px] font-semibold text-slate-400 block mb-1">Commercial Redevelopment Rule</label>
+                    <select id="commercial_redevelopment_mode" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500">
+                        <option value="Preserve Current Base Use">Preserve Base Use (No Job/Housing Crossover)</option>
+                        <option value="Vertical Mixed-Use">Vertical Mixed-Use</option>
+                        <option value="Pure Residential Infill">Convert to Pure Residential Infill</option>
+                        <option value="Pure Commercial Jobs">Convert to Pure Commercial Only</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="run-btn" disabled class="w-full bg-slate-700 text-slate-400 font-bold py-3 px-4 rounded-xl cursor-not-allowed border border-slate-600 transition shadow-inner text-sm">
+                Engine Loading...
+            </button>
+        </section>
+
+        <section class="xl:col-span-9 flex flex-col gap-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-[#1e293b] border border-slate-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Net Simulated Housing</span>
+                    <div class="mt-2 flex items-baseline space-x-2">
+                        <span id="housing-yield" class="text-4xl font-extrabold text-emerald-400 tracking-tight font-mono">--</span>
+                        <span class="text-slate-400 text-xs font-medium">Units</span>
+                    </div>
+                </div>
+
+                <div class="bg-[#1e293b] border border-slate-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Net Simulated Employment</span>
+                    <div class="mt-2 flex items-baseline space-x-2">
+                        <span id="jobs-yield" class="text-4xl font-extrabold text-cyan-400 tracking-tight font-mono">--</span>
+                        <span class="text-slate-400 text-xs font-medium">Jobs</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[550px]">
+                
+                <div class="lg:col-span-2 bg-[#1e293b] border border-slate-700 rounded-2xl p-1 shadow-lg relative h-full flex flex-col">
+                    <div class="absolute bottom-6 left-6 z-[1000] bg-slate-900/90 border border-slate-700 p-3 rounded-lg shadow-2xl backdrop-blur-sm pointer-events-none">
+                        <h4 class="text-[10px] font-bold text-white uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">Polygon Parcel Legend</h4>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-400 mb-2">
+                            <div class="w-3 h-3 rounded bg-[#059669] border border-[#a7f3d0]"></div> Housing Units Created
+                        </div>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                            <div class="w-3 h-3 rounded bg-[#0284c7] border border-[#bae6fd]"></div> Job Spaces Created
+                        </div>
+                    </div>
+                    <div id="map-canvas" class="w-full h-full bg-slate-900 rounded-xl z-10"></div>
+                </div>
+
+                <div class="lg:col-span-1 bg-[#1e293b] border border-slate-700 rounded-2xl p-4 shadow-lg flex flex-col h-full">
+                    <div class="border-b border-slate-700 pb-2 mb-2 flex justify-between items-end">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-200">District Breakdown</span>
+                        <span class="text-[9px] text-slate-500 font-mono">Net Yields</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto pr-1">
+                        <table class="w-full text-left">
+                            <thead class="text-[10px] text-slate-400 uppercase tracking-wider sticky top-0 bg-[#1e293b] z-10">
+                                <tr>
+                                    <th class="py-2 border-b border-slate-700">Dist</th>
+                                    <th class="py-2 border-b border-slate-700 text-right">Units</th>
+                                    <th class="py-2 border-b border-slate-700 text-right">Jobs</th>
+                                </tr>
+                            </thead>
+                            <tbody id="district-table-body" class="text-xs font-mono text-slate-300 divide-y divide-slate-800">
+                                <tr><td class="py-4 text-center font-sans text-slate-500 text-[11px]" colspan="3">Awaiting execution...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#0f172a] border border-slate-800 rounded-xl overflow-hidden shadow-inner flex flex-col h-[180px]">
+                <div class="bg-[#1e293b] border-b border-slate-800 px-4 py-2 flex justify-between items-center">
+                    <span class="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold">Python Virtual Filesystem Feed</span>
+                </div>
+                <div id="terminal-feed" class="p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1 flex-1">
+                    [System] Initializing Pyodide Python environment...<br>
+                </div>
+            </div>
+
+        </section>
+    </main>
 
     <script>
-        let pyodide = null;
-        const map = L.map('map-canvas').setView([31.7619, -106.4850], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        const absorptionSlider = document.getElementById('market_absorption_rate');
+        const absorptionVal = document.getElementById('absorption-val');
+        const runButton = document.getElementById('run-btn');
+        const terminal = document.getElementById('terminal-feed');
+        const statusBadge = document.getElementById('status-badge');
+        
+        let mapInstance = null;
+        let mapLayerGroup = null;
 
-        async function init() {
-            pyodide = await loadPyodide();
-            await pyodide.loadPackage(["pandas", "micropip"]);
-            const micropip = pyodide.pyimport("micropip");
-            await micropip.install(["geopandas", "shapely", "pyproj"]);
-            
-            const resp = await fetch('./calculate_capacity.py');
-            const code = await resp.text();
-            pyodide.runPython(code);
-            document.getElementById('run-btn').textContent = "Run Simulation";
+        absorptionSlider.addEventListener('input', (e) => absorptionVal.textContent = `${e.target.value}%`);
+
+        function logToTerminal(text, type='info') {
+            const color = type === 'error' ? 'text-rose-400' : type === 'success' ? 'text-emerald-400' : 'text-slate-400';
+            terminal.innerHTML += `<div class="${color}">[Engine] ${text}</div>`;
+            terminal.scrollTop = terminal.scrollHeight;
         }
 
-        document.getElementById('run-btn').onclick = async () => {
-            const levers = {
-                eliminate_parking: document.getElementById('eliminate_parking').checked,
-                active_representative_districts: [1,2,3,4,5,6,7,8]
-            };
-            
-            // Execute simulation and get JSON string
-            const jsonStr = pyodide.runPython(`run_simulation(${JSON.stringify(levers)})`);
-            const data = JSON.parse(jsonStr);
-            
-            // Update Table
-            const tbody = document.querySelector('#results-table tbody');
-            tbody.innerHTML = '';
-            for(let d in data.breakdowns) {
-                const row = document.createElement('tr');
-                row.className = "border-t border-slate-800";
-                row.innerHTML = `<td>D${d}</td><td>${data.breakdowns[d].units}</td><td>${data.breakdowns[d].jobs}</td>`;
-                tbody.appendChild(row);
-            }
-        };
+        function initMap() {
+            mapInstance = L.map('map-canvas', { zoomControl: true, attributionControl: false }).setView([31.7619, -106.4850], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(mapInstance);
+            mapLayerGroup = L.layerGroup().addTo(mapInstance);
+        }
 
-        init();
+        function styleFeature(feature) {
+            const units = feature.properties.sim_units || 0;
+            const jobs = feature.properties.sim_jobs || 0;
+            
+            if (units > jobs) {
+                return { fillColor: '#059669', color: '#a7f3d0', weight: 1, fillOpacity: 0.6 };
+            } else {
+                return { fillColor: '#0284c7', color: '#bae6fd', weight: 1, fillOpacity: 0.6 };
+            }
+        }
+
+        let pyodideInstance = null;
+
+        async function initPyodide() {
+            try {
+                pyodideInstance = await loadPyodide();
+                logToTerminal("Pyodide core active. Loading Pandas & Geopandas...");
+                
+                await pyodideInstance.loadPackage(["pandas", "fiona", "pyproj"]);
+                await pyodideInstance.loadPackage("micropip");
+                const micropip = pyodideInstance.pyimport("micropip");
+                await micropip.install("geopandas");
+                
+                const resp = await fetch('./calculate_capacity.py');
+                const code = await resp.text();
+                pyodideInstance.runPython(code);
+                
+                logToTerminal("Geopandas ready. Ready to fetch specific data files.", "success");
+                statusBadge.textContent = "Engine Ready";
+                statusBadge.className = "bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20 font-mono shadow-inner";
+                
+                runButton.disabled = false;
+                runButton.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg cursor-pointer text-sm uppercase tracking-wide";
+                runButton.textContent = "Fetch Data & Run Simulation";
+
+            } catch (err) {
+                logToTerminal(`CRITICAL ERROR: ${err.message}`, "error");
+            }
+        }
+
+        async function fetchFileToVFS(filename) {
+            try {
+                if (pyodideInstance.FS.analyzePath(filename).exists) return;
+                logToTerminal(`Fetching real file: ./data/${filename}...`);
+                const response = await fetch(`./data/${filename}`);
+                if (response.ok) {
+                    const buffer = await response.arrayBuffer();
+                    pyodideInstance.FS.writeFile(filename, new Uint8Array(buffer));
+                    logToTerminal(`Loaded ${filename} into virtual memory.`, "success");
+                } else {
+                    logToTerminal(`File not found on GitHub server: ./data/${filename}`, "error");
+                }
+            } catch (e) {
+                logToTerminal(`Network error fetching ${filename}`, "error");
+            }
+        }
+
+        async function runSimulation() {
+            if (!pyodideInstance) return;
+
+            statusBadge.textContent = "Processing Spatial Data...";
+            statusBadge.className = "bg-cyan-500/10 text-cyan-400 text-xs px-3 py-1.5 rounded-lg border border-cyan-500/20 font-mono animate-pulse shadow-inner";
+            
+            const activeDistricts = Array.from(document.querySelectorAll('#district-checkboxes-container input:checked')).map(cb => parseInt(cb.value));
+
+            // Ensure the directory exists in Pyodide filesystem
+            try { pyodideInstance.FS.mkdir('./data'); } catch(e) {}
+
+            await fetchFileToVFS('state_cd.csv');
+            await fetchFileToVFS('transit_corridors.geojson');
+            
+            for (let d of activeDistricts) {
+                await fetchFileToVFS(`D${d}GrowthParcels.geojson`);
+                await fetchFileToVFS(`footprints_d${d}.geojson`);
+            }
+
+            // Gather all specific lever states from the full UI
+            const levers = {
+                only_vacant_or_underutilized: document.getElementById('only_vacant_or_underutilized').checked,
+                market_absorption_rate: parseFloat(absorptionSlider.value) / 100.0,
+                commercial_redevelopment_mode: document.getElementById('commercial_redevelopment_mode').value,
+                eliminate_parking: document.getElementById('eliminate_parking').checked,
+                allow_conversions: document.getElementById('allow_conversions').checked,
+                allow_lot_splits: document.getElementById('allow_lot_splits').checked,
+                allow_middle_housing: document.getElementById('allow_middle_housing').checked,
+                middle_housing_tier: document.getElementById('middle_housing_tier').value,
+                allow_adus: document.getElementById('allow_adus').checked,
+                allow_midrise: document.getElementById('allow_midrise').checked,
+                active_representative_districts: activeDistricts
+            };
+
+            logToTerminal(`Applying Geopandas capacity math...`);
+
+            try {
+                // CRITICAL FIX: Send the JSON payload wrapped in single quotes so Python parses it safely.
+                const jsonStr = await pyodideInstance.runPythonAsync(`run_simulation('${JSON.stringify(levers)}')`);
+                const results = JSON.parse(jsonStr);
+
+                // Update Stats
+                document.getElementById('housing-yield').textContent = results.totals.units.toLocaleString();
+                document.getElementById('jobs-yield').textContent = results.totals.jobs.toLocaleString();
+
+                // Update District Breakdown Table
+                const tbody = document.getElementById('district-table-body');
+                tbody.innerHTML = '';
+                Object.keys(results.breakdowns).forEach(distId => {
+                    const d = results.breakdowns[distId];
+                    const activeClass = (d.units > 0 || d.jobs > 0) ? '' : 'opacity-30';
+                    const tr = document.createElement('tr');
+                    tr.className = activeClass + ' hover:bg-slate-800/50 transition';
+                    tr.innerHTML = `<td class="py-2.5 px-2 border-b border-slate-800">D${distId}</td>
+                                    <td class="py-2.5 px-2 border-b border-slate-800 text-right text-emerald-400">${d.units.toLocaleString()}</td>
+                                    <td class="py-2.5 px-2 border-b border-slate-800 text-right text-cyan-400">${d.jobs.toLocaleString()}</td>`;
+                    tbody.appendChild(tr);
+                });
+
+                // Draw Polygons on Leaflet Map
+                mapLayerGroup.clearLayers();
+                if (results.map_data && results.map_data !== "{}") {
+                    const geojsonData = JSON.parse(results.map_data);
+                    L.geoJSON(geojsonData, {
+                        style: styleFeature,
+                        onEachFeature: function (feature, layer) {
+                            layer.bindPopup(
+                                `<div class="text-xs"><b>Targeted Parcel Yield</b><br>
+                                 Units: +${feature.properties.sim_units}<br>
+                                 Jobs: +${feature.properties.sim_jobs}</div>`
+                            );
+                        }
+                    }).addTo(mapLayerGroup);
+                }
+
+                logToTerminal("Exact polygons rendered. Dashboard synchronized.", "success");
+            } catch (err) {
+                logToTerminal(`Execution Error: ${err.message}`, "error");
+            }
+
+            statusBadge.textContent = "Engine Ready";
+            statusBadge.className = "bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20 font-mono shadow-inner";
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initPyodide();
+            runButton.addEventListener('click', runSimulation);
+        });
     </script>
 </body>
 </html>

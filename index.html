@@ -2,42 +2,57 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>El Paso Housing Strategy Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 100vh; width: 100%; }
+        .sidebar { z-index: 1000; }
+    </style>
 </head>
-<body class="bg-gray-50 h-screen flex">
+<body class="flex">
 
-    <aside class="w-96 bg-white border-r p-6 overflow-y-auto">
-        <h1 class="text-xl font-bold mb-4">Housing Simulator</h1>
+    <aside class="sidebar w-96 bg-white border-r h-screen overflow-y-auto p-6 shadow-xl">
+        <h1 class="text-2xl font-bold text-blue-900 mb-6">Housing Strategy Simulator</h1>
         
-        <div class="space-y-4 mb-6">
-            <h3 class="font-bold">Geographic Filters</h3>
-            <label class="block text-sm">Context Area:</label>
-            <div class="flex gap-2">
-                <label><input type="checkbox" id="ctx_urban" checked> Urban</label>
-                <label><input type="checkbox" id="ctx_suburban" checked> Suburban</label>
+        <div class="space-y-4 mb-8 bg-gray-50 p-4 rounded-lg">
+            <h2 class="font-bold uppercase text-xs text-gray-500">Geography Filters</h2>
+            <div>
+                <label class="block text-sm font-semibold">Context Area:</label>
+                <div class="flex gap-4 mt-1">
+                    <label class="flex items-center gap-1"><input type="checkbox" id="ctx_urban" checked> Urban</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" id="ctx_suburban" checked> Suburban</label>
+                </div>
             </div>
             <label class="flex items-center gap-2">
-                <input type="checkbox" id="transit_only"> Restrict to Transit Corridors
+                <input type="checkbox" id="transit_corridors_only"> Restrict to Transit Corridors
             </label>
         </div>
 
         <div class="space-y-4">
-            <h3 class="font-bold">Reforms</h3>
-            <label class="flex items-center gap-2">
-                <input type="checkbox" id="allow_conversions"> Allow Large Home Subdivisions
-            </label>
-            <label class="flex items-center gap-2">
-                <input type="checkbox" id="allow_middle"> Allow Missing Middle
-            </label>
-            <button onclick="runSimulation()" class="w-full bg-blue-600 text-white p-2 rounded">Run Simulation</button>
+            <h2 class="font-bold uppercase text-xs text-gray-500">Policy Levers</h2>
+            <label class="flex items-center gap-2"><input type="checkbox" id="allow_conversions"> Allow Large Home Subdivisions</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="allow_middle"> Allow Missing Middle Housing</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="allow_splits"> Allow Lot Splits</label>
+            <button onclick="runSimulation()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">Run Simulation</button>
+        </div>
+
+        <div class="mt-8 grid grid-cols-2 gap-4">
+            <div class="bg-blue-100 p-4 rounded-lg text-center">
+                <p class="text-xs text-blue-800 font-bold">New Units</p>
+                <p id="total-units" class="text-2xl font-black">0</p>
+            </div>
+            <div class="bg-green-100 p-4 rounded-lg text-center">
+                <p class="text-xs text-green-800 font-bold">New Jobs</p>
+                <p id="total-jobs" class="text-2xl font-black">0</p>
+            </div>
         </div>
     </aside>
 
-    <main class="flex-1 relative">
-        <div id="map" class="h-full w-full"></div>
+    <main class="flex-1">
+        <div id="map"></div>
     </main>
 
     <script>
@@ -45,9 +60,10 @@
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         let allParcels = [];
+        let geojsonLayer;
 
-        // Load all 8 districts
-        async function loadAllDistricts() {
+        // Fetch all 8 districts automatically
+        async function loadAllData() {
             for (let i = 1; i <= 8; i++) {
                 try {
                     const res = await fetch(`./data/Ready_Parcels_D${i}.geojson`);
@@ -55,30 +71,48 @@
                         const data = await res.json();
                         allParcels.push(...data.features);
                     }
-                } catch (e) { console.warn(`District ${i} missing`); }
+                } catch (e) { console.warn(`District ${i} file not found.`); }
             }
-            console.log("Total Parcels Loaded:", allParcels.length);
+            alert(`Data Loaded: ${allParcels.length} total parcels available.`);
         }
 
         function runSimulation() {
+            const transitOnly = document.getElementById('transit_corridors_only').checked;
             const ctxUrban = document.getElementById('ctx_urban').checked;
             const ctxSuburban = document.getElementById('ctx_suburban').checked;
-            const transitOnly = document.getElementById('transit_only').checked;
-            const allowConversions = document.getElementById('allow_conversions').checked;
 
-            let filtered = allParcels.filter(p => {
+            let units = 0;
+            let jobs = 0;
+            let filteredFeatures = [];
+
+            allParcels.forEach(p => {
                 const props = p.properties;
-                // Geographic Logic
-                if (transitOnly && !props.in_corridor) return false;
-                // Add Context Area logic here based on your data attributes
-                return true; 
+
+                // Geography Filters
+                if (transitOnly && !props.in_corridor) return;
+                
+                // Example context logic: assuming your geojson has a 'context' field
+                // Adjust 'context_type' to match the column name in your data
+                if (!ctxUrban && props.context_type === 'Urban') return;
+                if (!ctxSuburban && props.context_type === 'Suburban') return;
+
+                // Simulation Math (Example)
+                if (props.targetlotarea > 5000) {
+                    props.sim_units = 2; // Dummy math logic
+                    units += 2;
+                    filteredFeatures.push(p);
+                }
             });
 
-            // Perform Math and Render
-            console.log("Simulating", filtered.length, "parcels");
+            document.getElementById('total-units').innerText = units;
+            document.getElementById('total-jobs').innerText = jobs;
+
+            // Render on map
+            if (geojsonLayer) map.removeLayer(geojsonLayer);
+            geojsonLayer = L.geoJSON(filteredFeatures).addTo(map);
         }
 
-        window.onload = loadAllDistricts;
+        window.onload = loadAllData;
     </script>
 </body>
 </html>

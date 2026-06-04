@@ -1,219 +1,373 @@
-import os
-import json
-import random
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-
-DATA_DIR = "./data"
-AVG_UNIT_SIZE = 850
-CONVERSION_UNIT_SIZE = 600
-SQ_FT_PER_EMPLOYEE = 300
-
-def to_serializable(val):
-    """Recursively convert NumPy types to standard Python types for JSON."""
-    if isinstance(val, (np.int64, np.int32, np.int_)): return int(val)
-    if isinstance(val, (np.float64, np.float32)): return float(val)
-    if isinstance(val, dict): return {k: to_serializable(v) for k, v in val.items()}
-    if isinstance(val, list): return [to_serializable(v) for v in val]
-    return val
-
-def load_land_use_mapping():
-    path = os.path.join(DATA_DIR, "state_cd.csv")
-    if not os.path.exists(path): return {}
-    df = pd.read_csv(path)
-    df.columns = df.columns.str.strip()
-    return pd.Series(df.state_cd_desc.values, index=df.state_cd.astype(str).str.strip()).to_dict()
-
-def estimate_existing_units(land_use_desc, state_code):
-    code = str(state_code).upper().strip()
-    desc = str(land_use_desc).upper()
-    if any(x in code for x in ['A7', 'A8', 'C1', 'C10', 'C3', 'C6', 'C7', 'C8']): return 0
-    if 'SINGLE-FAMILY' in desc or code == 'A1': return 1
-    if 'DUPLEX' in desc or code in ['A51', 'B1']: return 2
-    if 'TRIPLEX' in desc or code in ['A53', 'B3']: return 3
-    if 'QUADRUPLEX' in desc or 'QUADPLEX' in desc or code in ['A54', 'B4', 'B9']: return 4
-    if 'FIVEPLEX' in desc or code in ['A55', 'B5', 'B7']: return 5
-    if 'SIXPLEX' in desc or code in ['A56', 'B6', 'B8']: return 6
-    if 'APARTMENT' in desc or 'MULTI FAMILY' in desc or code in ['A52', 'B2']: return 12  
-    return 0
-
-def process_district(district_num, user_levers, land_use_map):
-    parcel_path = os.path.join(DATA_DIR, f"D{district_num}GrowthParcels.geojson")
-    footprint_path = os.path.join(DATA_DIR, f"footprints_d{district_num}.geojson")
-
-    if not os.path.exists(parcel_path): return None
-
-    parcels = gpd.read_file(parcel_path)
-    if parcels.crs is None: parcels.set_crs(epsg=4326, inplace=True)
-    parcels = parcels.to_crs(epsg=32139)
-
-    parcels['in_corridor'] = False
-    corridor_path = os.path.join(DATA_DIR, "transit_corridors.geojson")
-    if user_levers.get('allow_midrise', False) and os.path.exists(corridor_path):
-        corridors = gpd.read_file(corridor_path)
-        if corridors.crs is None: corridors.set_crs(epsg=4326, inplace=True)
-        corridors = corridors.to_crs(epsg=32139)
-        corridors['geometry'] = corridors.geometry.buffer(400)
-        parcels_in_corr = gpd.sjoin(parcels, corridors, how="inner", predicate="intersects")
-        parcels.loc[parcels.index.isin(parcels_in_corr.index), 'in_corridor'] = True
-
-    if 'LotArea' not in parcels.columns:
-        parcels['LotArea'] = parcels['geometry'].area * 10.7639 
-
-    pid_options = [c for c in parcels.columns if any(x in c.lower() for x in ['pid', 'id', 'objectid', 'parcel'])]
-    pid_col = pid_options[0] if pid_options else None
-
-    raw_state_col = 'STATE_CD'
-    state_cols = [c for c in parcels.columns if 'state' in c.lower() or 'cd' in c.lower() or 'use' in c.lower()]
-    if state_cols: raw_state_col = state_cols[0]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Paso Housing Strategy Simulator</title>
     
-    parcels['USE_DESC'] = parcels.get(raw_state_col, pd.Series("Unknown", index=parcels.index)).astype(str).str.strip().map(land_use_map).fillna("Unknown")
-    parcels['total_footprint_area'] = 0.0
-    parcels['total_interior_area'] = 0.0
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
 
-    if os.path.exists(footprint_path):
-        footprints = gpd.read_file(footprint_path).to_crs(parcels.crs)
-        if not footprints.empty:
-            height_col = [c for c in footprints.columns if any(x in c.lower() for x in ['height', 'story', 'stories'])]
-            if height_col:
-                h_field = height_col[0]
-                footprints['stories_calc'] = footprints[h_field].fillna(1).astype(int).clip(lower=1)
-            else:
-                footprints['stories_calc'] = 1
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        #map-canvas { border-radius: 0.75rem; z-index: 10; }
+    </style>
+</head>
+<body class="bg-[#0b1120] text-slate-200 font-sans antialiased min-h-screen flex flex-col">
+
+    <header class="border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-md sticky top-0 z-[1000] px-6 py-4 shadow-md">
+        <div class="max-w-[1800px] mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    El Paso Housing Strategy <span class="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono uppercase">Simulation Hub</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Interactive Macro Policy Optimization & Exact Parcel Yield Mapping</p>
+            </div>
+            <div id="status-badge" class="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-lg border border-amber-500/20 font-mono animate-pulse shadow-inner">
+                Initializing WebAssembly Environment...
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1800px] mx-auto p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start flex-1 w-full">
+        
+        <section class="xl:col-span-3 bg-[#1e293b] border border-slate-700/50 rounded-2xl p-5 space-y-6 shadow-2xl h-fit sticky top-24">
+            
+            <div class="space-y-3">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">1. Realism & Scope</h3>
+                <label class="flex items-start space-x-3 cursor-pointer p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 transition">
+                    <input type="checkbox" id="only_vacant_or_underutilized" checked class="mt-1 w-4 h-4 accent-emerald-500 rounded">
+                    <div>
+                        <span class="text-xs font-semibold text-slate-100 block">Isolate Infill Opportunities</span>
+                        <span class="text-[10px] text-slate-400 block mt-0.5">Restrict simulation to vacant lots & parking spaces (&lt;15% footprint).</span>
+                    </div>
+                </label>
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-[11px] font-semibold text-slate-300">Market Absorption Factor</label>
+                        <span id="absorption-val" class="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-emerald-400">10%</span>
+                    </div>
+                    <input type="range" id="market_absorption_rate" min="1" max="100" value="10" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+                <div class="pt-2">
+                    <span class="text-[11px] font-semibold text-slate-300 block mb-1.5">Active Representative Districts</span>
+                    <div class="grid grid-cols-4 gap-1.5" id="district-checkboxes-container">
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="1" checked class="mr-1 accent-emerald-500">D1</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="2" checked class="mr-1 accent-emerald-500">D2</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="3" checked class="mr-1 accent-emerald-500">D3</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="4" checked class="mr-1 accent-emerald-500">D4</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="5" checked class="mr-1 accent-emerald-500">D5</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="6" checked class="mr-1 accent-emerald-500">D6</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="7" checked class="mr-1 accent-emerald-500">D7</label>
+                        <label class="flex items-center justify-center p-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer border border-slate-700 text-xs font-mono text-slate-300"><input type="checkbox" value="8" checked class="mr-1 accent-emerald-500">D8</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-3 border-t border-slate-700/50">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">2. Neighborhood Infill</h3>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_conversions" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Mansion Conversions</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_lot_splits" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Lot Splits / Townhomes</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_adus" class="w-4 h-4 accent-emerald-500">
+                    <span class="text-xs font-medium text-slate-200">Accessory Dwelling Units (ADUs)</span>
+                </label>
                 
-            footprints['gross_interior_sqft'] = footprints['geometry'].area * 10.7639 * footprints['stories_calc']
+                <div class="bg-slate-800/50 p-2.5 rounded-lg border border-slate-700 mt-2">
+                    <label class="flex items-center space-x-3 cursor-pointer mb-2">
+                        <input type="checkbox" id="allow_middle_housing" class="w-4 h-4 accent-emerald-500">
+                        <span class="text-xs font-medium text-slate-200">Missing Middle Housing</span>
+                    </label>
+                    <select id="middle_housing_tier" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                        <option value="4-plex">Up to 4 Units (Quadplex)</option>
+                        <option value="8-plex">Up to 8 Units</option>
+                        <option value="16-plex">Up to 16 Units</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-3 border-t border-slate-700/50">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">3. Zoning & Corridors</h3>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="eliminate_parking" class="w-4 h-4 accent-cyan-500">
+                    <span class="text-xs font-medium text-slate-200">Eliminate Off-Street Parking Mandates</span>
+                </label>
+                <label class="flex items-center space-x-3 cursor-pointer p-1.5 rounded hover:bg-slate-800 transition">
+                    <input type="checkbox" id="allow_midrise" class="w-4 h-4 accent-cyan-500">
+                    <span class="text-xs font-medium text-slate-200">Allow Transit Corridor Midrise</span>
+                </label>
+                <div>
+                    <label class="text-[10px] font-semibold text-slate-400 block mb-1">Commercial Redevelopment Rule</label>
+                    <select id="commercial_redevelopment_mode" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500">
+                        <option value="Preserve Current Base Use">Preserve Base Use (No Job/Housing Crossover)</option>
+                        <option value="Vertical Mixed-Use">Vertical Mixed-Use</option>
+                        <option value="Pure Residential Infill">Convert to Pure Residential Infill</option>
+                        <option value="Pure Commercial Jobs">Convert to Pure Commercial Only</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="run-btn" disabled class="w-full bg-slate-700 text-slate-400 font-bold py-3 px-4 rounded-xl cursor-not-allowed border border-slate-600 transition shadow-inner text-sm">
+                Engine Loading...
+            </button>
+        </section>
+
+        <section class="xl:col-span-9 flex flex-col gap-6">
             
-            if pid_col and pid_col in footprints.columns:
-                f_agg = footprints.groupby(pid_col).agg(
-                    total_footprint_area=('geometry', lambda x: x.area.sum() * 10.7639),
-                    total_interior_area=('gross_interior_sqft', 'sum')
-                ).reset_index()
-                parcels = parcels.merge(f_agg, on=pid_col, how='left')
-            else:
-                f_joined = gpd.sjoin(footprints, parcels[[pid_col or 'geometry', 'geometry']].reset_index(), how="inner", predicate="within")
-                if not f_joined.empty:
-                    f_agg = f_joined.groupby('index').agg(
-                        total_footprint_area=('geometry', lambda x: x.area.sum() * 10.7639),
-                        total_interior_area=('gross_interior_sqft', 'sum')
-                    ).reset_index().set_index('index')
-                    parcels = parcels.join(f_agg, how='left')
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-[#1e293b] border border-slate-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Net Simulated Housing</span>
+                    <div class="mt-2 flex items-baseline space-x-2">
+                        <span id="housing-yield" class="text-4xl font-extrabold text-emerald-400 tracking-tight font-mono">--</span>
+                        <span class="text-slate-400 text-xs font-medium">Units</span>
+                    </div>
+                </div>
 
-    if 'total_footprint_area' not in parcels.columns: parcels['total_footprint_area'] = 0.0
-    if 'total_interior_area' not in parcels.columns: parcels['total_interior_area'] = 0.0
-    parcels['total_footprint_area'] = parcels['total_footprint_area'].fillna(0.0)
-    parcels['total_interior_area'] = parcels['total_interior_area'].fillna(0.0)
-    parcels['lot_coverage_pct'] = parcels['total_footprint_area'] / parcels['LotArea']
+                <div class="bg-[#1e293b] border border-slate-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Net Simulated Employment</span>
+                    <div class="mt-2 flex items-baseline space-x-2">
+                        <span id="jobs-yield" class="text-4xl font-extrabold text-cyan-400 tracking-tight font-mono">--</span>
+                        <span class="text-slate-400 text-xs font-medium">Jobs</span>
+                    </div>
+                </div>
+            </div>
 
-    zoning_cols = [c for c in parcels.columns if any(x in c.lower() for x in ['zon', 'label', 'class', 'dist'])]
-    absorption = user_levers.get('market_absorption_rate', 0.10)
-    redev_mode = user_levers.get('commercial_redevelopment_mode', 'Preserve Current Base Use')
-    
-    parcels['sim_units'] = 0
-    parcels['sim_jobs'] = 0
-
-    for idx, parcel in parcels.iterrows():
-        zoning = str(parcel.get(zoning_cols[0], '')).upper() if zoning_cols else ''
-        land_use = str(parcel.get('USE_DESC', '')).upper()
-        state_cd = str(parcel.get(raw_state_col, ''))
-        lot_area = parcel.get('LotArea', 0)
-        coverage = parcel.get('lot_coverage_pct', 0)
-        
-        is_vacant = any(x in state_cd for x in ['A7', 'A8', 'C1', 'C10', 'C3', 'C6', 'C7', 'C8']) or 'VACANT' in land_use
-        is_underutilized = coverage < 0.15 
-        
-        if user_levers.get('only_vacant_or_underutilized', False) and not (is_vacant or is_underutilized): continue 
-        
-        existing_units = estimate_existing_units(land_use, state_cd)
-        is_residential = any(x in zoning for x in ['R', 'A', 'RES', 'SF', 'TH']) or any(x in land_use for x in ['RESIDENTIAL', 'SINGLE-FAMILY', 'DUPLEX', 'MULTI'])
-        is_commercial = any(x in zoning for x in ['C', 'MU', 'B', 'COMM', 'M1', 'M2']) or any(x in land_use for x in ['COMMERCIAL', 'OFFICE', 'RETAIL', 'MIXED']) or zoning == ''
-        
-        parking_efficiency = 1.0 if user_levers.get('eliminate_parking', False) else 0.65
-        open_lot_space = max(0, (lot_area - parcel['total_footprint_area'])) * parking_efficiency
-        
-        gross_sim_units = 0
-        gross_sim_jobs = 0
-
-        if is_residential:
-            policy_applied = False
-            
-            if user_levers.get('allow_conversions', False) and parcel['total_interior_area'] >= 2000:
-                usable_interior = parcel['total_interior_area'] * 0.85
-                gross_sim_units = max(existing_units, int(usable_interior // CONVERSION_UNIT_SIZE))
-                policy_applied = True
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[550px]">
                 
-            if not policy_applied and user_levers.get('allow_lot_splits', False) and lot_area >= 4000:
-                max_possible_lots = int(lot_area // 2000)
-                gross_sim_units = max_possible_lots * 2
-                policy_applied = True
+                <div class="lg:col-span-2 bg-[#1e293b] border border-slate-700 rounded-2xl p-1 shadow-lg relative h-full flex flex-col">
+                    <div class="absolute bottom-6 left-6 z-[1000] bg-slate-900/90 border border-slate-700 p-3 rounded-lg shadow-2xl backdrop-blur-sm pointer-events-none">
+                        <h4 class="text-[10px] font-bold text-white uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">Polygon Parcel Legend</h4>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-400 mb-2">
+                            <div class="w-3 h-3 rounded bg-[#059669] border border-[#a7f3d0]"></div> Housing Units Created
+                        </div>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                            <div class="w-3 h-3 rounded bg-[#0284c7] border border-[#bae6fd]"></div> Job Spaces Created
+                        </div>
+                    </div>
+                    <div id="map-canvas" class="w-full h-full bg-slate-900 rounded-xl z-10"></div>
+                </div>
+
+                <div class="lg:col-span-1 bg-[#1e293b] border border-slate-700 rounded-2xl p-4 shadow-lg flex flex-col h-full">
+                    <div class="border-b border-slate-700 pb-2 mb-2 flex justify-between items-end">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-200">District Breakdown</span>
+                        <span class="text-[9px] text-slate-500 font-mono">Net Yields</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto pr-1">
+                        <table class="w-full text-left">
+                            <thead class="text-[10px] text-slate-400 uppercase tracking-wider sticky top-0 bg-[#1e293b] z-10">
+                                <tr>
+                                    <th class="py-2 border-b border-slate-700">Dist</th>
+                                    <th class="py-2 border-b border-slate-700 text-right">Units</th>
+                                    <th class="py-2 border-b border-slate-700 text-right">Jobs</th>
+                                </tr>
+                            </thead>
+                            <tbody id="district-table-body" class="text-xs font-mono text-slate-300 divide-y divide-slate-800">
+                                <tr><td class="py-4 text-center font-sans text-slate-500 text-[11px]" colspan="3">Awaiting execution...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#0f172a] border border-slate-800 rounded-xl overflow-hidden shadow-inner flex flex-col h-[180px]">
+                <div class="bg-[#1e293b] border-b border-slate-800 px-4 py-2 flex justify-between items-center">
+                    <span class="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold">Python Virtual Filesystem Feed</span>
+                </div>
+                <div id="terminal-feed" class="p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1 flex-1">
+                    [System] Initializing Pyodide Python environment...<br>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const absorptionSlider = document.getElementById('market_absorption_rate');
+        const absorptionVal = document.getElementById('absorption-val');
+        const runButton = document.getElementById('run-btn');
+        const terminal = document.getElementById('terminal-feed');
+        const statusBadge = document.getElementById('status-badge');
+        
+        let mapInstance = null;
+        let mapLayerGroup = null;
+
+        absorptionSlider.addEventListener('input', (e) => absorptionVal.textContent = `${e.target.value}%`);
+
+        function logToTerminal(text, type='info') {
+            const color = type === 'error' ? 'text-rose-400' : type === 'success' ? 'text-emerald-400' : 'text-slate-400';
+            terminal.innerHTML += `<div class="${color}">[Engine] ${text}</div>`;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function initMap() {
+            mapInstance = L.map('map-canvas', { zoomControl: true, attributionControl: false }).setView([31.7619, -106.4850], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(mapInstance);
+            mapLayerGroup = L.layerGroup().addTo(mapInstance);
+        }
+
+        function styleFeature(feature) {
+            const units = feature.properties.sim_units || 0;
+            const jobs = feature.properties.sim_jobs || 0;
+            
+            if (units > jobs) {
+                return { fillColor: '#059669', color: '#a7f3d0', weight: 1, fillOpacity: 0.6 };
+            } else {
+                return { fillColor: '#0284c7', color: '#bae6fd', weight: 1, fillOpacity: 0.6 };
+            }
+        }
+
+        let pyodideInstance = null;
+
+        async function initPyodide() {
+            try {
+                pyodideInstance = await loadPyodide();
+                logToTerminal("Pyodide core active. Loading Pandas & Geopandas...");
                 
-            if not policy_applied and user_levers.get('allow_middle_housing', False):
-                tier = user_levers.get('middle_housing_tier', '4-plex')
-                if tier == '16-plex' and lot_area >= 6000: gross_sim_units = 16
-                elif tier == '8-plex' and lot_area >= 5000: gross_sim_units = 8
-                else: gross_sim_units = 4 
-                policy_applied = True
-            
-            if not policy_applied: gross_sim_units = existing_units
-
-            if user_levers.get('allow_adus', False) and gross_sim_units <= 1:
-                if open_lot_space >= 800: gross_sim_units += 1
-
-        elif is_commercial:
-            allow_height = user_levers.get('allow_midrise', False) and parcel.get('in_corridor', False)
-            num_floors = 4 if allow_height else 1
-            buildable_footprint = lot_area * (0.50 if allow_height else 0.40) * parking_efficiency
-            
-            if redev_mode == 'Vertical Mixed-Use' and allow_height:
-                gross_sim_jobs = int(buildable_footprint // SQ_FT_PER_EMPLOYEE)
-                gross_sim_units = int((buildable_footprint * (num_floors - 1)) // AVG_UNIT_SIZE)
-            elif redev_mode == 'Pure Residential Infill':
-                gross_sim_units = int((buildable_footprint * num_floors) // AVG_UNIT_SIZE)
-            else:
-                gross_sim_jobs = int((buildable_footprint * num_floors) // SQ_FT_PER_EMPLOYEE)
-
-        net_new_units = max(0, gross_sim_units - existing_units)
-        
-        # PROBABILISTIC ABSORPTION: A Monte Carlo approach to avoid integer zeroing
-        if net_new_units > 0 or gross_sim_jobs > 0:
-            if random.random() <= absorption:
-                parcels.at[idx, 'sim_units'] = int(net_new_units)
-                parcels.at[idx, 'sim_jobs'] = int(gross_sim_jobs)
-
-    yield_subset = parcels[(parcels['sim_units'] > 0) | (parcels['sim_jobs'] > 0)].copy()
-    return yield_subset if not yield_subset.empty else None
-
-def run_simulation(levers_input):
-    try:
-        if isinstance(levers_input, str):
-            user_levers = json.loads(levers_input)
-        else:
-            user_levers = levers_input
-            
-        districts = user_levers.get('active_representative_districts', [1])
-        land_use_map = load_land_use_mapping()
-        
-        results = {"totals": {"units": 0, "jobs": 0}, "breakdowns": {}, "map_data": "{}"}
-        all_yield_parcels = []
-        
-        for d in districts:
-            gdf = process_district(d, user_levers, land_use_map)
-            if gdf is not None:
-                u = int(gdf['sim_units'].sum())
-                j = int(gdf['sim_jobs'].sum())
-                results["breakdowns"][d] = {"units": u, "jobs": j}
-                results["totals"]["units"] += u
-                results["totals"]["jobs"] += j
-                all_yield_parcels.append(gdf[['sim_units', 'sim_jobs', 'geometry']])
-            else:
-                results["breakdowns"][d] = {"units": 0, "jobs": 0}
+                await pyodideInstance.loadPackage(["pandas", "fiona", "pyproj"]);
+                await pyodideInstance.loadPackage("micropip");
+                const micropip = pyodideInstance.pyimport("micropip");
+                await micropip.install("geopandas");
                 
-        if all_yield_parcels:
-            final_map = pd.concat(all_yield_parcels).to_crs(epsg=4326)
-            results["map_data"] = final_map.to_json()
+                const resp = await fetch('./calculate_capacity.py');
+                const code = await resp.text();
+                pyodideInstance.runPython(code);
+                
+                logToTerminal("Geopandas ready. Ready to fetch specific data files.", "success");
+                statusBadge.textContent = "Engine Ready";
+                statusBadge.className = "bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20 font-mono shadow-inner";
+                
+                runButton.disabled = false;
+                runButton.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg cursor-pointer text-sm uppercase tracking-wide";
+                runButton.textContent = "Fetch Data & Run Simulation";
+
+            } catch (err) {
+                logToTerminal(`CRITICAL ERROR: ${err.message}`, "error");
+            }
+        }
+
+        async function fetchFileToVFS(filename) {
+            try {
+                if (pyodideInstance.FS.analyzePath(filename).exists) return;
+                logToTerminal(`Fetching real file: ./data/${filename}...`);
+                const response = await fetch(`./data/${filename}`);
+                if (response.ok) {
+                    const buffer = await response.arrayBuffer();
+                    pyodideInstance.FS.writeFile(filename, new Uint8Array(buffer));
+                    logToTerminal(`Loaded ${filename} into virtual memory.`, "success");
+                } else {
+                    logToTerminal(`File not found on GitHub server: ./data/${filename}`, "error");
+                }
+            } catch (e) {
+                logToTerminal(`Network error fetching ${filename}`, "error");
+            }
+        }
+
+        async function runSimulation() {
+            if (!pyodideInstance) return;
+
+            statusBadge.textContent = "Processing Spatial Data...";
+            statusBadge.className = "bg-cyan-500/10 text-cyan-400 text-xs px-3 py-1.5 rounded-lg border border-cyan-500/20 font-mono animate-pulse shadow-inner";
             
-        clean_results = to_serializable(results)
-        return json.dumps(clean_results)
-        
-    except Exception as e:
-        return json.dumps({"error": f"Python Processing Error: {str(e)}"})
+            const activeDistricts = Array.from(document.querySelectorAll('#district-checkboxes-container input:checked')).map(cb => parseInt(cb.value));
+
+            // Ensure the directory exists in Pyodide filesystem
+            try { pyodideInstance.FS.mkdir('./data'); } catch(e) {}
+
+            await fetchFileToVFS('state_cd.csv');
+            await fetchFileToVFS('transit_corridors.geojson');
+            
+            for (let d of activeDistricts) {
+                await fetchFileToVFS(`D${d}GrowthParcels.geojson`);
+                await fetchFileToVFS(`footprints_d${d}.geojson`);
+            }
+
+            // Gather all specific lever states from the full UI
+            const levers = {
+                only_vacant_or_underutilized: document.getElementById('only_vacant_or_underutilized').checked,
+                market_absorption_rate: parseFloat(absorptionSlider.value) / 100.0,
+                commercial_redevelopment_mode: document.getElementById('commercial_redevelopment_mode').value,
+                eliminate_parking: document.getElementById('eliminate_parking').checked,
+                allow_conversions: document.getElementById('allow_conversions').checked,
+                allow_lot_splits: document.getElementById('allow_lot_splits').checked,
+                allow_middle_housing: document.getElementById('allow_middle_housing').checked,
+                middle_housing_tier: document.getElementById('middle_housing_tier').value,
+                allow_adus: document.getElementById('allow_adus').checked,
+                allow_midrise: document.getElementById('allow_midrise').checked,
+                active_representative_districts: activeDistricts
+            };
+
+            logToTerminal(`Applying Geopandas capacity math...`);
+
+            try {
+                // Ensure Python handles the single quotes safely by converting JSON exactly
+                const jsonPayload = JSON.stringify(levers);
+                const jsonStr = await pyodideInstance.runPythonAsync(`run_simulation('${jsonPayload}')`);
+                const results = JSON.parse(jsonStr);
+
+                if (results.error) {
+                    throw new Error(results.error);
+                }
+
+                // Update Stats
+                document.getElementById('housing-yield').textContent = results.totals.units.toLocaleString();
+                document.getElementById('jobs-yield').textContent = results.totals.jobs.toLocaleString();
+
+                // Update District Breakdown Table
+                const tbody = document.getElementById('district-table-body');
+                tbody.innerHTML = '';
+                Object.keys(results.breakdowns).forEach(distId => {
+                    const d = results.breakdowns[distId];
+                    const activeClass = (d.units > 0 || d.jobs > 0) ? '' : 'opacity-30';
+                    const tr = document.createElement('tr');
+                    tr.className = activeClass + ' hover:bg-slate-800/50 transition';
+                    tr.innerHTML = `<td class="py-2.5 px-2 border-b border-slate-800">D${distId}</td>
+                                    <td class="py-2.5 px-2 border-b border-slate-800 text-right text-emerald-400">${d.units.toLocaleString()}</td>
+                                    <td class="py-2.5 px-2 border-b border-slate-800 text-right text-cyan-400">${d.jobs.toLocaleString()}</td>`;
+                    tbody.appendChild(tr);
+                });
+
+                // Draw Polygons on Leaflet Map
+                mapLayerGroup.clearLayers();
+                if (results.map_data && results.map_data !== "{}") {
+                    const geojsonData = JSON.parse(results.map_data);
+                    L.geoJSON(geojsonData, {
+                        style: styleFeature,
+                        onEachFeature: function (feature, layer) {
+                            layer.bindPopup(
+                                `<div class="text-xs"><b>Targeted Parcel Yield</b><br>
+                                 Units: +${feature.properties.sim_units}<br>
+                                 Jobs: +${feature.properties.sim_jobs}</div>`
+                            );
+                        }
+                    }).addTo(mapLayerGroup);
+                }
+
+                logToTerminal("Exact polygons rendered. Dashboard synchronized.", "success");
+            } catch (err) {
+                logToTerminal(`Execution Error: ${err.message}`, "error");
+            }
+
+            statusBadge.textContent = "Engine Ready";
+            statusBadge.className = "bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20 font-mono shadow-inner";
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initPyodide();
+            runButton.addEventListener('click', runSimulation);
+        });
+    </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -104,7 +105,6 @@ def process_district(district_num, user_levers, land_use_map):
     parcels['total_interior_area'] = parcels['total_interior_area'].fillna(0.0)
     parcels['lot_coverage_pct'] = parcels['total_footprint_area'] / parcels['LotArea']
 
-    # --- CORE CALCULATION LOOP ---
     zoning_cols = [c for c in parcels.columns if any(x in c.lower() for x in ['zon', 'label', 'class', 'dist'])]
     absorption = user_levers.get('market_absorption_rate', 0.10)
     redev_mode = user_levers.get('commercial_redevelopment_mode', 'Preserve Current Base Use')
@@ -173,17 +173,17 @@ def process_district(district_num, user_levers, land_use_map):
                 gross_sim_jobs = int((buildable_footprint * num_floors) // SQ_FT_PER_EMPLOYEE)
 
         net_new_units = max(0, gross_sim_units - existing_units)
-        parcels.at[idx, 'sim_units'] = int(net_new_units * absorption)
-        parcels.at[idx, 'sim_jobs'] = int(gross_sim_jobs * absorption)
+        
+        # PROBABILISTIC ABSORPTION: A Monte Carlo approach to avoid integer zeroing
+        if net_new_units > 0 or gross_sim_jobs > 0:
+            if random.random() <= absorption:
+                parcels.at[idx, 'sim_units'] = int(net_new_units)
+                parcels.at[idx, 'sim_jobs'] = int(gross_sim_jobs)
 
     yield_subset = parcels[(parcels['sim_units'] > 0) | (parcels['sim_jobs'] > 0)].copy()
     return yield_subset if not yield_subset.empty else None
 
 def run_simulation(levers_input):
-    """
-    CRITICAL FIX: This safely handles the input whether JavaScript 
-    sends it as a raw string or an already-parsed dictionary.
-    """
     try:
         if isinstance(levers_input, str):
             user_levers = json.loads(levers_input)
@@ -216,5 +216,4 @@ def run_simulation(levers_input):
         return json.dumps(clean_results)
         
     except Exception as e:
-        # If anything fails, return the error safely to the dashboard
         return json.dumps({"error": f"Python Processing Error: {str(e)}"})

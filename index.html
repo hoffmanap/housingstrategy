@@ -1,77 +1,163 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <title>Housing Strategy Simulator</title>
+    <title>Housing Strategy Engine | El Paso</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        #map { height: 100vh; width: 100%; }
-        .sidebar { z-index: 1000; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #cbd5e1; }
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        .sidebar { z-index: 1000; scrollbar-width: thin; scrollbar-color: #334155 #0f172a; }
+        
+        /* Custom Inputs */
+        input[type="checkbox"] { accent-color: #06b6d4; width: 1rem; height: 1rem; }
+        select, input[type="number"] { background-color: #1e293b; border: 1px solid #334155; color: #f8fafc; }
+        select:focus, input[type="number"]:focus { outline: none; border-color: #06b6d4; }
+        
+        /* Legend */
+        .map-legend { position: absolute; bottom: 30px; right: 30px; z-index: 1000; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; border-radius: 8px; padding: 12px; backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="bg-gray-100 flex">
+<body class="flex h-screen overflow-hidden">
 
-    <aside class="sidebar w-96 bg-white border-r h-screen overflow-y-auto p-6 shadow-xl">
-        <h1 class="text-2xl font-bold text-blue-900 mb-6">Strategy Simulator</h1>
+    <aside class="sidebar w-[400px] bg-slate-900 border-r border-slate-800 flex flex-col h-full shadow-2xl">
         
-        <div class="bg-gray-50 p-4 rounded-lg mb-6 space-y-2 border">
-            <h2 class="font-bold text-xs uppercase text-gray-500">Geography Filters</h2>
-            <label class="flex items-center gap-2"><input type="checkbox" id="ctx_urban" checked> Urban Context</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="ctx_suburban" checked> Suburban Context</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="transit_corridors_only"> Transit Corridors Only</label>
+        <div class="p-6 border-b border-slate-800">
+            <h1 class="text-xl font-extrabold text-white tracking-tight uppercase"><span class="text-cyan-500">EP</span> Strategy Engine</h1>
+            <p class="text-xs text-slate-400 mt-1">Parcel-Level Simulation Model v2.0</p>
         </div>
 
-        <div class="mb-6">
-            <h2 class="font-bold text-xs uppercase text-gray-500 mb-2">Development Scenario</h2>
-            <select id="scenario" class="w-full border p-2 rounded">
-                <option value="preserve">1. Preserve Existing Use</option>
-                <option value="all_res">2. Everything Residential</option>
-                <option value="all_comm">3. Everything Commercial</option>
-                <option value="mixed">4. Vertical Mixed-Use</option>
-            </select>
-        </div>
-
-        <div class="space-y-3">
-            <h2 class="font-bold text-xs uppercase text-gray-500">Policy Levers</h2>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="eliminate_parking" checked> Eliminate Parking Min</label>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_adus" checked> Allow ADUs</label>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_splits" checked> Allow Lot Splits (4k sqft min)</label>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_townhomes" checked> Allow Townhomes</label>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_conversions" checked> Allow Interior Conversions</label>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_middle" checked> Allow Middle Housing</label>
-            <select id="middle_tier" class="w-full border p-2 rounded text-sm">
-                <option value="5-8">5-8 Units</option>
-                <option value="9-16" selected>9-16 Units</option>
-            </select>
-            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="allow_midrise" checked> Allow Midrise (Corridors)</label>
-            <input type="number" id="midrise_stories" value="5" class="w-full border p-2 rounded text-sm" placeholder="Max Stories">
+        <div class="p-6 overflow-y-auto flex-1 space-y-8">
             
-            <button onclick="runSimulation()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 mt-4">Run Simulation</button>
+            <div>
+                <h2 class="font-bold text-[10px] tracking-widest text-slate-500 uppercase mb-3">Base Land Use Scenario</h2>
+                <select id="scenario" class="w-full p-2.5 rounded-md text-sm font-semibold">
+                    <option value="preserve">Preserve Existing Zoning Use</option>
+                    <option value="all_res">Rezone: Universal Residential</option>
+                    <option value="all_comm">Rezone: Universal Commercial</option>
+                    <option value="mixed">Rezone: Vertical Mixed-Use Priority</option>
+                </select>
+            </div>
+
+            <div>
+                <h2 class="font-bold text-[10px] tracking-widest text-slate-500 uppercase mb-3">Geographic Scope</h2>
+                <div class="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-800">
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition">
+                        <input type="checkbox" id="ctx_urban" checked> Apply to Urban Context
+                    </label>
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition">
+                        <input type="checkbox" id="ctx_suburban" checked> Apply to Suburban Context
+                    </label>
+                    <hr class="border-slate-700">
+                    <label class="flex items-center gap-3 text-sm text-cyan-400 cursor-pointer">
+                        <input type="checkbox" id="transit_only"> Restrict to Transit Corridors
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-rose-400 cursor-pointer">
+                        <input type="checkbox" id="exclude_historic"> Exclude Historic Districts
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="font-bold text-[10px] tracking-widest text-slate-500 uppercase mb-3">Policy Reforms</h2>
+                <div class="space-y-3">
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white"><input type="checkbox" id="eliminate_parking" checked> Eliminate Parking Minimums</label>
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white"><input type="checkbox" id="allow_adus" checked> Allow ADUs (Accessory Dwellings)</label>
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white"><input type="checkbox" id="allow_splits" checked> Allow Lot Splits (Min 4k sqft)</label>
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white"><input type="checkbox" id="allow_conversions" checked> Large Home Subdivisions</label>
+                    <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white"><input type="checkbox" id="allow_townhomes" checked> Allow Townhomes</label>
+                    
+                    <div class="pl-7 pt-2">
+                        <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white mb-2"><input type="checkbox" id="allow_middle" checked> Allow Missing Middle</label>
+                        <select id="middle_tier" class="w-full p-2 rounded-md text-xs mb-3">
+                            <option value="4-plex">Up to 4-Plex</option>
+                            <option value="8-plex">Up to 8-Plex</option>
+                            <option value="16-plex" selected>Up to 16-Plex</option>
+                        </select>
+                    </div>
+
+                    <div class="pl-7 pt-2 border-t border-slate-800">
+                        <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white mb-2 mt-2"><input type="checkbox" id="allow_midrise" checked> Allow Midrise (Corridors)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="midrise_stories" value="5" class="w-16 p-2 rounded-md text-xs text-center">
+                            <span class="text-xs text-slate-400">Max Stories</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
-        <div class="mt-8 grid grid-cols-2 gap-4">
-            <div class="bg-blue-100 p-4 rounded-lg text-center">
-                <p class="text-xs text-blue-800 font-bold">New Units</p>
-                <p id="total-units" class="text-2xl font-black">0</p>
-            </div>
-            <div class="bg-green-100 p-4 rounded-lg text-center">
-                <p class="text-xs text-green-800 font-bold">New Jobs</p>
-                <p id="total-jobs" class="text-2xl font-black">0</p>
-            </div>
+        <div class="p-6 bg-slate-950 border-t border-slate-800">
+            <button onclick="runSimulation()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md shadow-lg shadow-cyan-900/50 transition-all active:scale-95">
+                EXECUTE SIMULATION
+            </button>
         </div>
     </aside>
 
-    <main class="flex-1"><div id="map"></div></main>
+    <main class="flex-1 relative flex flex-col">
+        
+        <div class="absolute top-6 right-6 z-[1000] flex gap-4 pointer-events-none">
+            <div class="bg-slate-900/90 border border-slate-700 shadow-2xl rounded-xl p-5 pointer-events-auto min-w-[160px] backdrop-blur-md">
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net New Units</p>
+                <p id="stat-units" class="text-3xl font-black text-cyan-400 mt-1">0</p>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-700 shadow-2xl rounded-xl p-5 pointer-events-auto min-w-[160px] backdrop-blur-md">
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net New Jobs</p>
+                <p id="stat-jobs" class="text-3xl font-black text-amber-400 mt-1">0</p>
+            </div>
+        </div>
+
+        <div class="absolute top-6 left-6 z-[1000] pointer-events-none">
+            <div class="bg-slate-900/90 border border-slate-700 shadow-2xl rounded-xl p-4 pointer-events-auto backdrop-blur-md text-xs">
+                <p class="font-bold uppercase tracking-widest text-slate-500 mb-2 text-[10px]">District Breakdown</p>
+                <table class="w-full text-right border-collapse">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-700">
+                            <th class="pb-1 pr-4 text-left">Dist</th>
+                            <th class="pb-1 pr-4 text-cyan-500">Units</th>
+                            <th class="pb-1 text-amber-500">Jobs</th>
+                        </tr>
+                    </thead>
+                    <tbody id="district-tbody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="map-legend text-xs">
+            <p class="font-bold text-[10px] tracking-widest text-slate-400 uppercase mb-2 border-b border-slate-700 pb-1">Development Typology</p>
+            <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 rounded-full bg-[#06b6d4]"></span> Residential Yield</div>
+            <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 rounded-full bg-[#f59e0b]"></span> Commercial Yield</div>
+            <div class="flex items-center gap-2 mb-2"><span class="w-3 h-3 rounded-full bg-[#d946ef]"></span> Mixed-Use Yield</div>
+            <p class="text-[9px] text-slate-500 mt-2 italic">*Opacity indicates density volume.</p>
+        </div>
+
+        <div id="map"></div>
+    </main>
 
     <script>
-        const map = L.map('map').setView([31.76, -106.48], 11);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+        // Constants for Architecture
+        const AVG_UNIT_SIZE = 850;
+        const CONVERSION_UNIT_SIZE = 600;
+        const SQ_FT_PER_EMPLOYEE = 300;
+
+        // Initialize Map (Carto Dark Matter for modern tech feel)
+        const map = L.map('map', {zoomControl: false}).setView([31.76, -106.48], 11);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
 
         let allParcels = [];
         let geojsonLayer;
 
+        // Fetch Data
         async function loadAllData() {
             for (let i = 1; i <= 8; i++) {
                 try {
@@ -82,59 +168,205 @@
                     }
                 } catch (e) { console.warn(`District ${i} missing`); }
             }
-            console.log("Data loaded. Check this sample parcel:", allParcels[0]?.properties);
+            console.log(`System Ready. Loaded ${allParcels.length} parcels.`);
+            
+            // Initialize empty district table
+            renderDistrictTable({});
         }
 
         function runSimulation() {
+            // 1. Gather UI Levers
             const scenario = document.getElementById('scenario').value;
-            const transitOnly = document.getElementById('transit_corridors_only').checked;
-            const ctxUrban = document.getElementById('ctx_urban').checked;
-            const ctxSuburban = document.getElementById('ctx_suburban').checked;
+            const levers = {
+                eliminate_parking: document.getElementById('eliminate_parking').checked,
+                allow_adus: document.getElementById('allow_adus').checked,
+                allow_splits: document.getElementById('allow_splits').checked,
+                allow_conversions: document.getElementById('allow_conversions').checked,
+                allow_townhomes: document.getElementById('allow_townhomes').checked,
+                allow_middle: document.getElementById('allow_middle').checked,
+                middle_tier: document.getElementById('middle_tier').value,
+                allow_midrise: document.getElementById('allow_midrise').checked,
+                midrise_stories: parseInt(document.getElementById('midrise_stories').value) || 5
+            };
 
-            let units = 0;
-            let jobs = 0;
-            let filteredFeatures = [];
+            const filters = {
+                ctxUrban: document.getElementById('ctx_urban').checked,
+                ctxSuburban: document.getElementById('ctx_suburban').checked,
+                transitOnly: document.getElementById('transit_only').checked,
+                excludeHistoric: document.getElementById('exclude_historic').checked
+            };
 
-            allParcels.forEach(p => {
-                const props = p.properties;
+            let totalUnits = 0;
+            let totalJobs = 0;
+            let districtStats = { 1:{u:0, j:0}, 2:{u:0, j:0}, 3:{u:0, j:0}, 4:{u:0, j:0}, 5:{u:0, j:0}, 6:{u:0, j:0}, 7:{u:0, j:0}, 8:{u:0, j:0} };
+            let yieldFeatures = [];
 
-                // 1. Geography Filters
-                if (transitOnly && !props.in_corridor) return;
+            // 2. Engine Loop
+            allParcels.forEach(feature => {
+                const props = feature.properties;
                 
-                // If Context doesn't exist, don't filter it out (prevent blank map)
-                if (props.in_context) {
-                    if (!ctxUrban && props.context_type === 'Urban') return;
-                    if (!ctxSuburban && props.context_type === 'Suburban') return;
+                // --- GEOGRAPHIC FILTERS ---
+                if (filters.transitOnly && !props.in_corridor) return;
+                if (filters.excludeHistoric && props.in_historic) return;
+
+                // Robust Context Area Check
+                const ctx = (props.context_type || "").toLowerCase();
+                if (ctx !== "none" && ctx !== "") {
+                    const isUrban = ctx.includes("urban") && !ctx.includes("suburban");
+                    const isSub = ctx.includes("suburban");
+                    
+                    if (!filters.ctxUrban && isUrban) return;
+                    if (!filters.ctxSuburban && isSub) return;
                 }
 
-                // 2. Scenario Math Logic
-                let isRes = props.use_desc.includes('RES'); // Simplified Logic
-                let isComm = props.use_desc.includes('COMM');
-                
-                // Apply Scenarios
-                if (scenario === 'all_res') { isRes = true; isComm = false; }
-                if (scenario === 'all_comm') { isRes = false; isComm = true; }
+                // --- DATA EXTRACTION ---
+                const existingUnits = props.existing_units || 0;
+                const lotArea = props.targetlotarea || 0;
+                const interior = props.interior_sqft || 0;
+                const footprint = props.footprint_sqft || 0;
+                const district = props.district || 1;
+
+                // Base Use Determination
+                let isResBase = props.use_desc.includes('RES') || ['A1','A2','A3','A4','A5','B1','B2'].some(c => props.state_cd_clean.includes(c));
+                let isCommBase = props.use_desc.includes('COMM') || ['F1','F2','F3','F4'].some(c => props.state_cd_clean.includes(c));
+                if (!isResBase && !isCommBase) isResBase = true; 
+
+                // Scenario Overrides
+                let isRes = scenario === 'all_res' ? true : (scenario === 'all_comm' ? false : isResBase);
+                let isComm = scenario === 'all_comm' ? true : (scenario === 'all_res' ? false : isCommBase);
                 if (scenario === 'mixed') { isRes = true; isComm = true; }
 
-                // Placeholder Calculation Logic
-                let newUnits = 0;
-                let newJobs = 0;
-                if (isRes) newUnits = 4;
-                if (isComm) newJobs = 10;
+                let grossUnits = existingUnits;
+                let grossJobs = 0;
 
-                props.sim_units = newUnits;
-                props.sim_jobs = newJobs;
-                units += newUnits;
-                jobs += newJobs;
-                filteredFeatures.push(p);
+                const parkingMult = levers.eliminate_parking ? 1.0 : 0.65;
+                const openSpace = Math.max(0, lotArea - footprint) * parkingMult;
+
+                // --- MATH LOGIC ---
+                if (isRes) {
+                    let bestPolicyYield = existingUnits;
+
+                    // Competing Structural Policies (We take the Math.max of whichever reform allows the most density)
+                    if (levers.allow_splits && lotArea >= 4000) {
+                        bestPolicyYield = Math.max(bestPolicyYield, Math.floor(lotArea / 2000) * 2); 
+                    }
+                    if (levers.allow_conversions && interior >= 2000) {
+                        bestPolicyYield = Math.max(bestPolicyYield, Math.floor((interior * 0.85) / CONVERSION_UNIT_SIZE));
+                    }
+                    if (levers.allow_townhomes && lotArea >= 3000) {
+                        bestPolicyYield = Math.max(bestPolicyYield, Math.floor(lotArea / 1500));
+                    }
+                    if (levers.allow_middle) {
+                        if (levers.middle_tier === '16-plex' && lotArea >= 6000) bestPolicyYield = Math.max(bestPolicyYield, 16);
+                        else if (levers.middle_tier === '8-plex' && lotArea >= 5000) bestPolicyYield = Math.max(bestPolicyYield, 8);
+                        else if (lotArea >= 4000) bestPolicyYield = Math.max(bestPolicyYield, 4);
+                    }
+
+                    grossUnits = bestPolicyYield;
+
+                    // Additive Policies (ADUs do not compete with base structure)
+                    if (levers.allow_adus && grossUnits <= 2 && openSpace >= 800) {
+                        grossUnits += 1;
+                    }
+                }
+
+                if (isComm) {
+                    let heightBoost = levers.allow_midrise && props.in_corridor;
+                    let stories = heightBoost ? levers.midrise_stories : 1;
+                    let buildableSqft = lotArea * (heightBoost ? 0.60 : 0.40) * parkingMult;
+
+                    if (scenario === 'mixed' && heightBoost) {
+                        // Ground floor commercial, upper floors residential
+                        grossJobs = Math.floor(buildableSqft / SQ_FT_PER_EMPLOYEE);
+                        grossUnits = Math.max(grossUnits, Math.floor((buildableSqft * (stories - 1)) / AVG_UNIT_SIZE));
+                    } else {
+                        // Pure Commercial
+                        grossJobs = Math.floor((buildableSqft * stories) / SQ_FT_PER_EMPLOYEE);
+                    }
+                }
+
+                const netUnits = Math.max(0, grossUnits - existingUnits);
+                const netJobs = Math.max(0, grossJobs);
+
+                // --- AGGREGATION ---
+                if (netUnits > 0 || netJobs > 0) {
+                    totalUnits += netUnits;
+                    totalJobs += netJobs;
+                    
+                    if (districtStats[district]) {
+                        districtStats[district].u += netUnits;
+                        districtStats[district].j += netJobs;
+                    }
+
+                    // Clone for map to prevent data mutation on multiple runs
+                    let yieldFeat = JSON.parse(JSON.stringify(feature));
+                    yieldFeat.properties.sim_units = netUnits;
+                    yieldFeat.properties.sim_jobs = netJobs;
+                    yieldFeatures.push(yieldFeat);
+                }
             });
 
-            document.getElementById('total-units').innerText = units.toLocaleString();
-            document.getElementById('total-jobs').innerText = jobs.toLocaleString();
+            // 3. Update HUD UI
+            document.getElementById('stat-units').innerText = totalUnits.toLocaleString();
+            document.getElementById('stat-jobs').innerText = totalJobs.toLocaleString();
+            renderDistrictTable(districtStats);
+            renderMap(yieldFeatures);
+        }
 
+        function renderDistrictTable(stats) {
+            let html = "";
+            for (let i = 1; i <= 8; i++) {
+                const s = stats[i] || {u:0, j:0};
+                html += `
+                    <tr class="border-t border-slate-800">
+                        <td class="py-1 pr-4 text-left font-bold text-slate-300">D${i}</td>
+                        <td class="py-1 pr-4 text-cyan-400">${s.u.toLocaleString()}</td>
+                        <td class="py-1 text-amber-400">${s.j.toLocaleString()}</td>
+                    </tr>
+                `;
+            }
+            document.getElementById('district-tbody').innerHTML = html;
+        }
+
+        function renderMap(features) {
             if (geojsonLayer) map.removeLayer(geojsonLayer);
-            geojsonLayer = L.geoJSON(filteredFeatures, {
-                style: { fillColor: '#3b82f6', weight: 1, fillOpacity: 0.7 }
+            if (features.length === 0) return;
+
+            geojsonLayer = L.geoJSON(features, {
+                style: function (feature) {
+                    const u = feature.properties.sim_units > 0;
+                    const j = feature.properties.sim_jobs > 0;
+                    const totalVol = (feature.properties.sim_units || 0) + ((feature.properties.sim_jobs || 0) / 3); 
+                    
+                    // Base Colors
+                    let color = '#06b6d4'; // Cyan for Residential
+                    if (j && !u) color = '#f59e0b'; // Amber for Commercial
+                    if (u && j) color = '#d946ef'; // Fuchsia for Mixed
+
+                    // Density Opacity Logic (Brighter for more units/jobs)
+                    let opacity = 0.4;
+                    if (totalVol > 5) opacity = 0.6;
+                    if (totalVol > 15) opacity = 0.8;
+                    if (totalVol > 50) opacity = 1.0;
+
+                    return {
+                        fillColor: color,
+                        weight: 0.5,
+                        color: '#1e293b', 
+                        fillOpacity: opacity
+                    };
+                },
+                onEachFeature: function (feature, layer) {
+                    let p = feature.properties;
+                    layer.bindPopup(`
+                        <div class="bg-slate-900 text-slate-200 p-2 font-sans text-xs rounded border border-slate-700">
+                            <strong class="block text-white border-b border-slate-700 pb-1 mb-2">PIDN: ${p.pidn}</strong>
+                            <p class="text-cyan-400">Net Units: +${p.sim_units}</p>
+                            <p class="text-amber-400">Net Jobs: +${p.sim_jobs}</p>
+                            <p class="text-slate-500 mt-2">Context: ${p.context_type}</p>
+                        </div>
+                    `);
+                }
             }).addTo(map);
         }
 

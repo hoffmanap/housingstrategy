@@ -179,31 +179,42 @@ def process_district(district_num, user_levers, land_use_map):
     yield_subset = parcels[(parcels['sim_units'] > 0) | (parcels['sim_jobs'] > 0)].copy()
     return yield_subset if not yield_subset.empty else None
 
-def run_simulation(user_levers_json_string):
-    # CRITICAL FIX: Parse JSON inside Python to avoid boolean false/True variable errors
-    user_levers = json.loads(user_levers_json_string)
-    
-    districts = user_levers.get('active_representative_districts', [1])
-    land_use_map = load_land_use_mapping()
-    
-    results = {"totals": {"units": 0, "jobs": 0}, "breakdowns": {}, "map_data": "{}"}
-    all_yield_parcels = []
-    
-    for d in districts:
-        gdf = process_district(d, user_levers, land_use_map)
-        if gdf is not None:
-            u = int(gdf['sim_units'].sum())
-            j = int(gdf['sim_jobs'].sum())
-            results["breakdowns"][d] = {"units": u, "jobs": j}
-            results["totals"]["units"] += u
-            results["totals"]["jobs"] += j
-            all_yield_parcels.append(gdf[['sim_units', 'sim_jobs', 'geometry']])
+def run_simulation(levers_input):
+    """
+    CRITICAL FIX: This safely handles the input whether JavaScript 
+    sends it as a raw string or an already-parsed dictionary.
+    """
+    try:
+        if isinstance(levers_input, str):
+            user_levers = json.loads(levers_input)
         else:
-            results["breakdowns"][d] = {"units": 0, "jobs": 0}
+            user_levers = levers_input
             
-    if all_yield_parcels:
-        final_map = pd.concat(all_yield_parcels).to_crs(epsg=4326)
-        results["map_data"] = final_map.to_json()
+        districts = user_levers.get('active_representative_districts', [1])
+        land_use_map = load_land_use_mapping()
         
-    clean_results = to_serializable(results)
-    return json.dumps(clean_results)
+        results = {"totals": {"units": 0, "jobs": 0}, "breakdowns": {}, "map_data": "{}"}
+        all_yield_parcels = []
+        
+        for d in districts:
+            gdf = process_district(d, user_levers, land_use_map)
+            if gdf is not None:
+                u = int(gdf['sim_units'].sum())
+                j = int(gdf['sim_jobs'].sum())
+                results["breakdowns"][d] = {"units": u, "jobs": j}
+                results["totals"]["units"] += u
+                results["totals"]["jobs"] += j
+                all_yield_parcels.append(gdf[['sim_units', 'sim_jobs', 'geometry']])
+            else:
+                results["breakdowns"][d] = {"units": 0, "jobs": 0}
+                
+        if all_yield_parcels:
+            final_map = pd.concat(all_yield_parcels).to_crs(epsg=4326)
+            results["map_data"] = final_map.to_json()
+            
+        clean_results = to_serializable(results)
+        return json.dumps(clean_results)
+        
+    except Exception as e:
+        # If anything fails, return the error safely to the dashboard
+        return json.dumps({"error": f"Python Processing Error: {str(e)}"})

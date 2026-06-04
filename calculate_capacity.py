@@ -10,8 +10,6 @@ DATA_DIR = "./data"
 AVG_UNIT_SIZE = 850
 CONVERSION_UNIT_SIZE = 600
 SQ_FT_PER_EMPLOYEE = 300
-
-# El Paso Latitude used to correct Web Mercator distortion without needing local pyproj.db
 EL_PASO_LAT = 31.76
 
 def to_serializable(val):
@@ -43,7 +41,6 @@ def estimate_existing_units(land_use_desc, state_code):
     return 0
 
 def get_col(df, possible_names, exact=False):
-    """Safely finds columns despite case sensitivity variations in GeoJSON exports."""
     for c in df.columns:
         cl = c.lower()
         for p in possible_names:
@@ -59,38 +56,34 @@ def process_district(district_num, user_levers, land_use_map):
 
     parcels = gpd.read_file(parcel_path)
     
-    # 1. FORCE WEB MERCATOR (EPSG:3857) to prevent Pyodide Local DB projection failures
-    if parcels.crs is None: parcels.set_crs(epsg=4326, inplace=True)
+    # 1. CRS Enforcement: Safely ensure the browser knows these are GPS coordinates
+    if parcels.crs is None: 
+        parcels.set_crs(epsg=4326, inplace=True)
+        
+    # Project to Universal Web Mercator for area calculations
     parcels = parcels.to_crs(epsg=3857)
 
-    # 2. Transit Corridor Spatial Math
+    # 2. Corridor Buffer Logic
     parcels['in_corridor'] = False
     corridor_path = os.path.join(DATA_DIR, "transit_corridors.geojson")
     if user_levers.get('allow_midrise', False) and os.path.exists(corridor_path):
         corridors = gpd.read_file(corridor_path)
         if corridors.crs is None: corridors.set_crs(epsg=4326, inplace=True)
         corridors = corridors.to_crs(epsg=3857)
-        # Fix Web Mercator buffer distortion
         scale_factor = 1.0 / math.cos(math.radians(EL_PASO_LAT))
         corridors['geometry'] = corridors.geometry.buffer(400 * scale_factor)
         parcels_in_corr = gpd.sjoin(parcels, corridors, how="inner", predicate="intersects")
         parcels.loc[parcels.index.isin(parcels_in_corr.index), 'in_corridor'] = True
 
-    # 3. Calculate True Area using Cosine Correction
-    area_col = get_col(parcels, ['lotarea', 'shape_area', 'area_sqft', 'parcel_area'], exact=True)
-    if area_col:
-        parcels['LotArea'] = parcels[area_col]
-    else:
-        lat_correction = (math.cos(math.radians(EL_PASO_LAT))) ** 2
-        parcels['LotArea'] = parcels['geometry'].area * lat_correction * 10.7639
+    # 3. CRITICAL FIX: FORCIBLY CALCULATE AREA. 
+    # Do not trust pre-existing 'shape_area' columns which may be in square degrees!
+    lat_correction = (math.cos(math.radians(EL_PASO_LAT))) ** 2
+    parcels['LotArea'] = parcels.geometry.area * lat_correction * 10.7639
 
     # 4. Safely Extract IDs and Zoning Codes
     pid_col = get_col(parcels, ['pid', 'id', 'objectid', 'parcel', 'prop_id'])
-    
-    # EXACT match required so we don't accidentally grab 'OBJECTID' as 'cd'
     raw_state_col = get_col(parcels, ['state_cd', 'statecd', 'state class', 'state_class', 'use_cd', 'landuse', 'land_use'], exact=True)
-    if not raw_state_col:
-        raw_state_col = get_col(parcels, ['state'])
+    if not raw_state_col: raw_state_col = get_col(parcels, ['state'])
     
     if raw_state_col:
         parcels['STATE_CD_CLEAN'] = parcels[raw_state_col].astype(str).str.strip().str.upper()
@@ -102,32 +95,30 @@ def process_district(district_num, user_levers, land_use_map):
     parcels['total_footprint_area'] = 0.0
     parcels['total_interior_area'] = 0.0
 
-    # 5. Extract Footprint Data
+    # 5. Extract Footprints & Map to Parcels
     if os.path.exists(footprint_path):
-        footprints = gpd.read_file(footprint_path).to_crs(parcels.crs)
+        footprints = gpd.read_file(footprint_path)
+        if footprints.crs is None: footprints.set_crs(epsg=4326, inplace=True)
+        footprints = footprints.to_crs(parcels.crs)
+        
         if not footprints.empty:
             h_field = get_col(footprints, ['height', 'story', 'stories'])
             footprints['stories_calc'] = footprints[h_field].fillna(1).astype(int).clip(lower=1) if h_field else 1
+            footprints['gross_interior_sqft'] = footprints.geometry.area * lat_correction * 10.7639 * footprints['stories_calc']
             
-            foot_correction = (math.cos(math.radians(EL_PASO_LAT))) ** 2
-            footprints['gross_interior_sqft'] = footprints['geometry'].area * foot_correction * 10.7639 * footprints['stories_calc']
-            
-            # Safe spatial join mapping strictly back to parcels via explicit ID
             parcels_idx = parcels[['geometry']].copy()
             parcels_idx['parcel_idx'] = parcels_idx.index
             f_joined = gpd.sjoin(footprints, parcels_idx, how="inner", predicate="within")
             
             if not f_joined.empty:
                 f_agg = f_joined.groupby('parcel_idx').agg(
-                    total_footprint_area=('geometry', lambda x: x.area.sum() * foot_correction * 10.7639),
+                    total_footprint_area=('geometry', lambda x: x.area.sum() * lat_correction * 10.7639),
                     total_interior_area=('gross_interior_sqft', 'sum')
                 ).reset_index().set_index('parcel_idx')
                 parcels = parcels.join(f_agg, how='left')
 
     parcels['total_footprint_area'] = parcels.get('total_footprint_area', pd.Series(0.0, index=parcels.index)).fillna(0.0)
     parcels['total_interior_area'] = parcels.get('total_interior_area', pd.Series(0.0, index=parcels.index)).fillna(0.0)
-    
-    # Avoid divide by zero
     parcels['lot_coverage_pct'] = np.where(parcels['LotArea'] > 0, parcels['total_footprint_area'] / parcels['LotArea'], 0)
 
     zoning_col = get_col(parcels, ['zoning', 'zone', 'base_zone'])
@@ -136,6 +127,9 @@ def process_district(district_num, user_levers, land_use_map):
     
     parcels['sim_units'] = 0
     parcels['sim_jobs'] = 0
+
+    # Seed the random number generator so the map renders consistently per simulation
+    random.seed(42 + district_num)
 
     # 6. --- CORE CALCULATION LOOP ---
     for idx, parcel in parcels.iterrows():
@@ -151,8 +145,13 @@ def process_district(district_num, user_levers, land_use_map):
         if user_levers.get('only_vacant_or_underutilized', False) and not (is_vacant or is_underutilized): continue 
         
         existing_units = estimate_existing_units(land_use, state_cd)
+        
         is_residential = any(x in zoning for x in ['R', 'A', 'RES', 'SF', 'TH']) or any(x in land_use for x in ['RESIDENTIAL', 'SINGLE-FAMILY', 'DUPLEX', 'MULTI'])
-        is_commercial = any(x in zoning for x in ['C', 'MU', 'B', 'COMM', 'M1', 'M2']) or any(x in land_use for x in ['COMMERCIAL', 'OFFICE', 'RETAIL', 'MIXED']) or zoning == ''
+        is_commercial = any(x in zoning for x in ['C', 'MU', 'B', 'COMM', 'M1', 'M2']) or any(x in land_use for x in ['COMMERCIAL', 'OFFICE', 'RETAIL', 'MIXED'])
+        
+        # Safety net: If attributes are totally stripped/missing, assume residential so it doesn't default to 0
+        if not is_residential and not is_commercial:
+            is_residential = True 
         
         parking_efficiency = 1.0 if user_levers.get('eliminate_parking', False) else 0.65
         open_lot_space = max(0, (lot_area - parcel['total_footprint_area'])) * parking_efficiency
@@ -200,14 +199,20 @@ def process_district(district_num, user_levers, land_use_map):
 
         net_new_units = max(0, gross_sim_units - existing_units)
         
-        # PROBABILISTIC ABSORPTION
         if net_new_units > 0 or gross_sim_jobs > 0:
             if random.random() <= absorption:
                 parcels.at[idx, 'sim_units'] = int(net_new_units)
                 parcels.at[idx, 'sim_jobs'] = int(gross_sim_jobs)
 
+    # 7. Final Output Setup
     yield_subset = parcels[(parcels['sim_units'] > 0) | (parcels['sim_jobs'] > 0)].copy()
-    return yield_subset if not yield_subset.empty else None
+    
+    # Reproject back to GPS Coordinates so Leaflet can actually draw it!
+    if not yield_subset.empty:
+        yield_subset = yield_subset.to_crs(epsg=4326)
+        return yield_subset 
+    else:
+        return None
 
 def run_simulation(levers_input):
     try:
@@ -232,8 +237,7 @@ def run_simulation(levers_input):
                 results["breakdowns"][d] = {"units": 0, "jobs": 0}
                 
         if all_yield_parcels:
-            # Re-project to Global GPS coordinate system for the Leaflet Map
-            final_map = pd.concat(all_yield_parcels).to_crs(epsg=4326)
+            final_map = pd.concat(all_yield_parcels)
             results["map_data"] = final_map.to_json()
             
         clean_results = to_serializable(results)

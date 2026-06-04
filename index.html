@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>El Paso Housing Strategy Simulator</title>
     
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         body {
@@ -25,12 +25,13 @@
             padding: 25px;
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
             overflow-y: auto;
-            z-index: 10;
+            z-index: 1000; /* High z-index to sit above Leaflet map controls */
             display: flex;
             flex-direction: column;
         }
 
-        h2 { font-size: 20px; color: #333; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px;}
+        h3 { font-size: 15px; color: #555; margin-top: 20px; margin-bottom: 10px;}
         
         /* Tooltip CSS */
         .tooltip-icon {
@@ -52,7 +53,7 @@
             border-radius: 6px;
             padding: 10px;
             position: absolute;
-            z-index: 1000;
+            z-index: 2000;
             bottom: 130%;
             left: 50%;
             transform: translateX(-50%);
@@ -61,7 +62,8 @@
             font-size: 12px;
             font-weight: normal;
             line-height: 1.4;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+            pointer-events: none; /* Prevents tooltip from interfering with clicks */
         }
 
         .tooltip-icon .tooltip-text::after {
@@ -81,14 +83,14 @@
         }
 
         .policy-lever {
-            margin-bottom: 18px;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            font-size: 15px;
+            font-size: 14px;
             color: #444;
         }
 
-        input[type="checkbox"] { margin-right: 10px; cursor: pointer; }
+        input[type="checkbox"] { margin-right: 10px; cursor: pointer; width: 16px; height: 16px;}
         
         button {
             width: 100%;
@@ -97,20 +99,25 @@
             color: white;
             border: none;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 15px;
+            font-weight: bold;
             cursor: pointer;
-            margin-top: 20px;
+            margin-top: 25px;
             transition: background 0.3s;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.2);
         }
 
         button:hover { background-color: #0056b3; }
 
         .results {
-            margin-top: 30px;
+            margin-top: 25px;
             padding: 20px;
             background: #e9ecef;
             border-radius: 8px;
+            border-left: 4px solid #007bff;
         }
+
+        .results p { margin: 10px 0; font-size: 15px; }
 
         /* Map Container */
         #map {
@@ -120,21 +127,42 @@
 
         #loading-indicator {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 5px;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 6px;
             font-weight: bold;
-            z-index: 100;
+            color: #333;
+            z-index: 1000;
             display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #f39c12;
         }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h2>Housing Strategy Policies</h2>
+        <h2>El Paso Housing Simulator</h2>
+        
+        <h3>Context & Constraints</h3>
+        <div class="policy-lever">
+            <input type="checkbox" id="filter_historic" checked>
+            <label for="filter_historic">Protect Historic Districts</label>
+            <span class="tooltip-icon">ⓘ
+                <span class="tooltip-text">Excludes parcels within designated historic districts from receiving new high-density development capacity.</span>
+            </span>
+        </div>
+        <div class="policy-lever">
+            <input type="checkbox" id="filter_context" checked>
+            <label for="filter_context">Restrict to Context Areas</label>
+            <span class="tooltip-icon">ⓘ
+                <span class="tooltip-text">Limits development simulations to specific designated growth and context areas within the city.</span>
+            </span>
+        </div>
+
+        <h3>Policy Interventions</h3>
         
         <div class="policy-lever">
             <input type="checkbox" id="residential_conversions">
@@ -163,9 +191,9 @@
         <button onclick="runSimulation()">Run Capacity Simulation</button>
 
         <div class="results">
-            <h3 style="margin-top: 0; color: #333;">Projected Impact</h3>
-            <p><strong>New Housing Units:</strong> <span id="out-units" style="color: #007bff; font-weight: bold;">0</span></p>
-            <p><strong>New Jobs:</strong> <span id="out-jobs" style="color: #28a745; font-weight: bold;">0</span></p>
+            <h3 style="margin-top: 0; border: none; padding: 0;">Projected Impact</h3>
+            <p><strong>New Housing Units:</strong> <span id="out-units" style="color: #007bff; font-weight: bold; font-size: 18px;">0</span></p>
+            <p><strong>New Jobs:</strong> <span id="out-jobs" style="color: #28a745; font-weight: bold; font-size: 18px;">0</span></p>
         </div>
     </div>
 
@@ -174,26 +202,34 @@
     </div>
 
     <script>
-        // --- MAP INITIALIZATION ---
-        // REPLACE WITH YOUR ACTUAL ACCESS TOKEN
-        mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE'; 
-        
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/light-v11',
-            center: [-106.4850, 31.7619], // Centered roughly on El Paso
-            zoom: 10
-        });
+        // --- 1. INITIALIZE LEAFLET MAP ---
+        const map = L.map('map').setView([31.7619, -106.4850], 11);
 
-        // Global variable to store all loaded parcel data
+        // Polished Light Basemap (CartoDB Positron - No tokens required)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Global arrays to hold the raw data and the map layer
         let allParcels = [];
+        let geojsonLayer = L.geoJSON(null, {
+            style: {
+                color: "#2980b9",
+                weight: 1,
+                fillOpacity: 0.1,
+                fillColor: "#3498db"
+            }
+        }).addTo(map);
 
-        // --- DATA LOADING ---
+        // --- 2. LOAD DISTRICT DATA (1 through 8) ---
         async function loadDistrictData() {
-            document.getElementById('loading-indicator').style.display = 'block';
-            let loadedCount = 0;
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.style.display = 'block';
+            
+            let filesLoaded = 0;
 
-            // Fetch Districts 1 through 8 using the exact corrected naming convention
             for (let i = 1; i <= 8; i++) {
                 const fileName = `data/Ready_Parcels_D${i}.geojson`;
                 try {
@@ -202,60 +238,40 @@
                         const data = await response.json();
                         if (data.features) {
                             allParcels = allParcels.concat(data.features);
-                            loadedCount++;
-                            
-                            // Visual: Add the loaded data to the map
-                            if (map.isStyleLoaded()) {
-                                addLayerToMap(data, i);
-                            } else {
-                                map.once('style.load', () => addLayerToMap(data, i));
-                            }
+                            geojsonLayer.addData(data); // Add to Leaflet Map
+                            filesLoaded++;
                         }
-                        console.log(`Successfully loaded District ${i}`);
                     } else {
-                        console.warn(`File not found: ${fileName} (Status: ${response.status})`);
+                        console.warn(`Could not load ${fileName}`);
                     }
                 } catch (error) {
                     console.error(`Error fetching ${fileName}:`, error);
                 }
             }
             
-            document.getElementById('loading-indicator').innerText = `Loaded ${allParcels.length} total parcels ready for simulation.`;
-            setTimeout(() => { document.getElementById('loading-indicator').style.display = 'none'; }, 3000);
-            console.log(`Total parcels loaded ready for simulation: ${allParcels.length}`);
-        }
-
-        // Helper function to render GeoJSON on the map
-        function addLayerToMap(geojsonData, districtNum) {
-            const sourceId = `district-${districtNum}-source`;
-            if (!map.getSource(sourceId)) {
-                map.addSource(sourceId, {
-                    type: 'geojson',
-                    data: geojsonData
-                });
-
-                map.addLayer({
-                    id: `district-${districtNum}-layer`,
-                    type: 'fill',
-                    source: sourceId,
-                    paint: {
-                        'fill-color': '#007bff',
-                        'fill-opacity': 0.1,
-                        'fill-outline-color': '#0056b3'
-                    }
-                });
+            if (filesLoaded > 0) {
+                // Adjust map view to fit the loaded data
+                map.fitBounds(geojsonLayer.getBounds());
             }
+
+            loadingIndicator.style.borderLeftColor = "#28a745";
+            loadingIndicator.innerText = `Loaded ${allParcels.length} parcels across ${filesLoaded} districts.`;
+            setTimeout(() => { loadingIndicator.style.display = 'none'; }, 3500);
         }
 
-        // --- SIMULATION LOGIC ---
+        // --- 3. SIMULATION LOGIC ---
         function runSimulation() {
             let totalUnits = 0;
             let totalJobs = 0;
 
-            // Get Policy Lever States
+            // Get state of Policy Levers
             const resConversionsActive = document.getElementById('residential_conversions').checked;
             const midriseActive = document.getElementById('allow_midrise').checked;
             const missingMiddleActive = document.getElementById('missing_middle').checked;
+
+            // Get state of Constraints/Filters
+            const protectHistoric = document.getElementById('filter_historic').checked;
+            const restrictContext = document.getElementById('filter_context').checked;
 
             allParcels.forEach(parcel => {
                 const props = parcel.properties;
@@ -263,8 +279,14 @@
                 // FIX FOR 'includes' ERROR: Safely default to an empty string if property is null
                 const zoning = props.zoning || '';
                 const landUse = props.land_use || '';
+                const isHistoric = props.is_historic === 1 || props.is_historic === true;
+                const isContext = props.in_context_area === 1 || props.in_context_area === true;
 
-                // Residential Logic
+                // Apply Filters: Skip parcel if it violates a checked constraint
+                if (protectHistoric && isHistoric) return; 
+                if (restrictContext && !isContext) return;
+
+                // Math: Residential capacity
                 if (zoning?.includes('RES') || landUse?.includes('RES')) {
                     if (resConversionsActive && props.lot_size_sqft > 8000) {
                         totalUnits += 3; 
@@ -274,7 +296,7 @@
                     }
                 }
 
-                // Commercial Logic
+                // Math: Commercial capacity
                 if (zoning?.includes('COM') || landUse?.includes('COM')) {
                     if (midriseActive) {
                         totalUnits += 25; 
@@ -283,16 +305,23 @@
                 }
             });
 
-            // Update Dashboard UI
+            // Update UI with calculated numbers
             document.getElementById('out-units').innerText = totalUnits.toLocaleString();
             document.getElementById('out-jobs').innerText = totalJobs.toLocaleString();
-            console.log("Capacity simulation executed successfully!");
+            
+            // Visual feedback on the button
+            const btn = document.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = "Simulation Complete!";
+            btn.style.backgroundColor = "#28a745";
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.backgroundColor = "#007bff";
+            }, 2000);
         }
 
-        // Initialize Map and Load Data on Startup
-        map.on('load', () => {
-            loadDistrictData();
-        });
+        // Load data automatically when the map is ready
+        window.onload = loadDistrictData;
     </script>
 </body>
 </html>

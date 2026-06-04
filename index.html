@@ -27,14 +27,12 @@
 
         .results { margin-top: 20px; background: #e9ecef; border-radius: 8px; padding: 15px; border-left: 4px solid #007bff; }
         
-        /* District Table Styling */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
         th, td { padding: 6px; text-align: right; border-bottom: 1px solid #ddd; }
         th { background-color: #dee2e6; font-weight: bold; }
         td:first-child, th:first-child { text-align: left; }
         .total-row { font-weight: bold; background-color: #d6dce1; }
 
-        /* Map UI Elements */
         #loading { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); border-left: 4px solid #f39c12; padding: 10px 15px; border-radius: 4px; font-weight: bold; z-index: 1000; display: none; }
         .info.legend { background: white; padding: 10px; line-height: 1.5; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
@@ -74,8 +72,8 @@
             <label style="margin-left:0;">Context Area:</label>
             <select id="filter_context" style="width: 120px;">
                 <option value="all">All Contexts</option>
-                <option value="Urban">Urban Only</option>
-                <option value="Suburban">Suburban Only</option>
+                <option value="urban">Urban Only</option>
+                <option value="suburban">Suburban Only</option>
             </select>
         </div>
         <div class="control-group">
@@ -130,7 +128,6 @@
     </div>
 
     <script>
-        // Initialize Map
         const map = L.map('map').setView([31.7619, -106.4850], 11);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
@@ -139,7 +136,6 @@
             style: { color: "#95a5a6", weight: 1, fillOpacity: 0.2, fillColor: "#bdc3c7" }
         }).addTo(map);
 
-        // Map Legend
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend');
@@ -155,11 +151,9 @@
         };
         legend.addTo(map);
 
-        // Load Data
         async function loadData() {
             const loadingMsg = document.getElementById('loading');
             loadingMsg.style.display = 'block';
-            let successCount = 0;
 
             for (let i = 1; i <= 8; i++) {
                 try {
@@ -168,7 +162,6 @@
                         const data = await res.json();
                         allParcels = allParcels.concat(data.features);
                         geojsonLayer.addData(data);
-                        successCount++;
                     }
                 } catch (e) { 
                     console.error(`Failed loading D${i}`); 
@@ -179,18 +172,18 @@
             loadingMsg.innerText = `Successfully loaded data!`;
             setTimeout(() => { loadingMsg.style.display = 'none'; }, 2000);
             
-            // Run a blank simulation to style the map initially
             runSimulation();
         }
 
-        // SIMULATION ENGINE
         function runSimulation() {
-            // 1. Gather UI Inputs
+            // UI Inputs
             const scenario = document.getElementById('scenario_select').value;
             const distFilter = document.getElementById('filter_district').value;
-            const contextFilter = document.getElementById('filter_context').value;
+            const contextFilter = document.getElementById('filter_context').value.toLowerCase();
             const transitOnly = document.getElementById('filter_transit').checked;
             const protectHistoric = document.getElementById('filter_historic').checked;
+            
+            // Decimal absorption rate (e.g., 10% = 0.10)
             const absorption = parseFloat(document.getElementById('absorption_rate').value) / 100;
 
             const adus = document.getElementById('allow_adus').checked;
@@ -201,83 +194,89 @@
             const midrise = document.getElementById('allow_midrise').checked;
             const midriseFloors = parseInt(document.getElementById('midrise_floors').value);
 
-            // Track results for the 8 districts
+            // Track Float values for accumulation
             let districtTotals = { 1:{u:0,j:0}, 2:{u:0,j:0}, 3:{u:0,j:0}, 4:{u:0,j:0}, 5:{u:0,j:0}, 6:{u:0,j:0}, 7:{u:0,j:0}, 8:{u:0,j:0} };
 
-            // 2. Loop through all loaded parcels
             allParcels.forEach(parcel => {
                 const props = parcel.properties;
-                const d = props.district; // Pulled directly from your JSON snippet
+                const d = props.district; 
                 
-                // Reset visibility flag
                 props._isVisible = true;
 
-                // --- SPATIAL FILTERS (These decide if the parcel is visible on the map at all) ---
-                if (distFilter !== 'all' && d.toString() !== distFilter) props._isVisible = false;
-                if (contextFilter !== 'all' && props.context_type !== contextFilter) props._isVisible = false;
-                if (transitOnly && props.in_corridor !== true) props._isVisible = false;
-                if (protectHistoric && props.in_historic === true) props._isVisible = false;
+                // --- BULLETPROOF FILTERS ---
+                // 1. District
+                if (distFilter !== 'all' && d.toString() !== distFilter) {
+                    props._isVisible = false;
+                }
+                
+                // 2. Context Filter (Case insensitive)
+                if (contextFilter !== 'all') {
+                    const cType = (props.context_type || '').toLowerCase();
+                    if (cType !== contextFilter) props._isVisible = false;
+                }
 
-                let parcelUnits = 0;
-                let parcelJobs = 0;
+                // 3. Transit Filter (Type agnostic)
+                if (transitOnly) {
+                    const inCorridor = (props.in_corridor === true || props.in_corridor === 'true' || props.in_corridor === 1);
+                    if (!inCorridor) props._isVisible = false;
+                }
 
-                // Only run calculations if the parcel survived the filters
+                // 4. Historic Filter (Type agnostic)
+                if (protectHistoric) {
+                    const inHist = (props.in_historic === true || props.in_historic === 'true' || props.in_historic === 1);
+                    if (inHist) props._isVisible = false;
+                }
+
+                let rawUnits = 0;
+                let rawJobs = 0;
+
+                // Calculate only if parcel survives filters
                 if (props._isVisible) {
-                    
-                    // Determine current zoning designation (Using "R" for Residential, "C" for Commercial)
                     const zoning = (props.zonelabel || '').toUpperCase();
-                    let isRes = zoning.includes('R') || zoning.includes('A') || zoning.includes('M') || zoning.includes('P'); // Standard housing zones
-                    let isCom = zoning.includes('C'); // Commercial zones
+                    let isRes = zoning.includes('R') || zoning.includes('A') || zoning.includes('M') || zoning.includes('P'); 
+                    let isCom = zoning.includes('C'); 
 
-                    // Overwrite base zoning based on selected Scenario
                     if (scenario === 'residential') { isRes = true; isCom = false; }
                     if (scenario === 'commercial') { isRes = false; isCom = true; }
                     if (scenario === 'mixed') { isRes = true; isCom = true; }
 
-                    // --- APPLY POLICIES ---
                     if (isRes) {
-                        if (adus) parcelUnits += 1;
-                        // Using targetlotarea from your snippet to calculate Lot Splits
-                        if (lotSplits && props.targetlotarea > 10000) parcelUnits += 2; 
-                        if (mm48) parcelUnits += 6; 
-                        if (mm816) parcelUnits += 12; 
-                        if (elimParking) parcelUnits += 1; 
+                        if (adus) rawUnits += 1;
+                        if (lotSplits && props.targetlotarea > 10000) rawUnits += 2; 
+                        if (mm48) rawUnits += 6; 
+                        if (mm816) rawUnits += 12; 
+                        if (elimParking) rawUnits += 1; 
                     }
 
                     if (isCom) {
                         if (midrise) {
-                            parcelJobs += 15; 
-                            parcelUnits += (midriseFloors - 1) * 10; 
+                            rawJobs += 15; 
+                            rawUnits += (midriseFloors - 1) * 10; 
                         }
                     }
 
-                    // Apply Absorption Rate
-                    parcelUnits = Math.round(parcelUnits * absorption);
-                    parcelJobs = Math.round(parcelJobs * absorption);
-
-                    // Add to district totals
+                    // Store floating point calculations in the district tracker
                     if (districtTotals[d]) {
-                        districtTotals[d].u += parcelUnits;
-                        districtTotals[d].j += parcelJobs;
+                        districtTotals[d].u += (rawUnits * absorption);
+                        districtTotals[d].j += (rawJobs * absorption);
                     }
                 }
 
-                // Save calc values back to the parcel for Map Styling
-                props._calcUnits = parcelUnits;
-                props._calcJobs = parcelJobs;
+                // Save individual values for map coloring
+                props._calcUnits = (rawUnits * absorption);
+                props._calcJobs = (rawJobs * absorption);
             });
 
-            // 3. Update Results Table UI
+            // Update Results Table (Rounding happens HERE, at the end)
             const tbody = document.getElementById('results-body');
             tbody.innerHTML = '';
             let grandUnits = 0; let grandJobs = 0;
 
             for (let i = 1; i <= 8; i++) {
-                // If a specific district is filtered, don't show the others in the table
                 if (distFilter !== 'all' && i.toString() !== distFilter) continue;
 
-                const u = districtTotals[i].u;
-                const j = districtTotals[i].j;
+                const u = Math.round(districtTotals[i].u);
+                const j = Math.round(districtTotals[i].j);
                 grandUnits += u; grandJobs += j;
                 
                 tbody.innerHTML += `<tr><td>District ${i}</td><td>${u.toLocaleString()}</td><td>${j.toLocaleString()}</td></tr>`;
@@ -285,13 +284,13 @@
             document.getElementById('total-units').innerText = grandUnits.toLocaleString();
             document.getElementById('total-jobs').innerText = grandJobs.toLocaleString();
 
-            // 4. Update Map Colors & Visibility
+            // Apply Leaflet Map Visibility
             geojsonLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
                 
-                // If the parcel was filtered out, make it completely invisible
                 if (!props._isVisible) {
-                    layer.setStyle({ opacity: 0, fillOpacity: 0, weight: 0 });
+                    // Turn off completely
+                    layer.setStyle({ stroke: false, fill: false, opacity: 0, fillOpacity: 0 });
                     return;
                 }
 
@@ -301,22 +300,23 @@
                 let fillColor = "#bdc3c7"; 
                 let fillOpacity = 0.2;
 
-                // Dual Color Ramp Logic
                 if (u > j) {
-                    fillColor = u > 10 ? "#2980b9" : "#7fb3d5"; // Blue ramp
+                    fillColor = u > 2 ? "#2980b9" : "#7fb3d5"; 
                     fillOpacity = u > 0 ? 0.7 : 0.2;
                 } else if (j > 0 && j >= u) {
-                    fillColor = j > 10 ? "#d35400" : "#e59866"; // Orange ramp
+                    fillColor = j > 2 ? "#d35400" : "#e59866"; 
                     fillOpacity = 0.7;
                 }
 
-                // Make visible and styled
+                // Restore styles for visible items
                 layer.setStyle({ 
+                    stroke: true, 
+                    fill: true,
                     fillColor: fillColor, 
                     fillOpacity: fillOpacity,
-                    color: "#95a5a6", // Border color
-                    opacity: 1,       // Border opacity
-                    weight: 1         // Border thickness
+                    color: "#95a5a6", 
+                    opacity: 1,       
+                    weight: 1         
                 });
             });
         }

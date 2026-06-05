@@ -32,6 +32,26 @@
         
         #loading { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); border-left: 4px solid #f39c12; padding: 10px 15px; border-radius: 4px; font-weight: bold; z-index: 1000; display: none; }
         
+        /* Interactive Target Dashboard Banner */
+        #target-banner {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.96);
+            padding: 10px 25px;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            gap: 40px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            border-top: 4px solid #007bff;
+            text-align: center;
+        }
+        
         /* Legend Styling */
         .legend { background: white; padding: 10px; line-height: 1.5; color: #555; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
@@ -64,12 +84,14 @@
         <h3>3. Policy Interventions</h3>
         <div class="control-group"><input type="checkbox" id="allow_adus"><label>Allow ADUs<span class="info-icon" title="Permits Accessory Dwelling Units on single-family lots.">ⓘ</span></label></div>
         <div class="control-group"><input type="checkbox" id="allow_lot_splits"><label>Allow Lot Splits<span class="info-icon" title="Allows subdivision of large parcels into smaller buildable lots.">ⓘ</span></label></div>
-        <div class="control-group"><input type="checkbox" id="mansion_conversions"><label>Mansion Conversions<span class="info-icon" title="Converts existing large homes into multi-unit housing.">ⓘ</span></label></div>
+        <div class="control-group"><input type="checkbox" id="mansion_conversions"><label>Mansion Conversions<span class="info-icon" title="Converts existing large single-family structures into multiple smaller residential units.">ⓘ</span></label></div>
+        <div class="control-group"><input type="checkbox" id="mm_4_8"><label>Missing Middle (4-8 Units)<span class="info-icon" title="Permits multi-unit structures like duplexes up to 8 units in traditional zones.">ⓘ</span></label></div>
+        <div class="control-group"><input type="checkbox" id="mm_9_16"><label>Missing Middle (9-16 Units)<span class="info-icon" title="Enables medium-density developments between 9 and 16 units by-right.">ⓘ</span></label></div>
         <div class="control-group">
-            <input type="checkbox" id="allow_midrise"><label>Allow Midrise Development<span class="info-icon" title="Permits multi-story buildings. Select height below.">ⓘ</span></label>
-            <select id="midrise_floors"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+            <input type="checkbox" id="allow_midrise"><label>Allow Midrise Development<span class="info-icon" title="Permits multi-story mixed-use buildings. Select allowable height on the dropdown menu.">ⓘ</span></label>
+            <select id="midrise_floors"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5" selected>5</option></select>
         </div>
-        <div class="control-group"><input type="checkbox" id="elim_parking"><label>No Parking Requirements<span class="info-icon" title="Removes off-street parking minimums to lower development costs.">ⓘ</span></label></div>
+        <div class="control-group"><input type="checkbox" id="elim_parking"><label>No Parking Requirements<span class="info-icon" title="Eliminates off-street parking minimums to ensure layout space is no longer a constraint, maximizing expansion capabilities.">ⓘ</span></label></div>
 
         <button onclick="runSimulation()">Run Capacity Simulator</button>
 
@@ -82,13 +104,18 @@
         </div>
     </div>
 
-    <div id="map"><div id="loading">Loading...</div></div>
+    <div id="map">
+        <div id="target-banner">
+            <div id="housing-banner-status">Housing Target: 35,000 <br><span style="color:#007bff;">Remaining: 35,000</span></div>
+            <div id="jobs-banner-status">Jobs Target: 55,000 <br><span style="color:#d35400;">Remaining: 55,000</span></div>
+        </div>
+        <div id="loading">Loading...</div>
+    </div>
 
     <script>
         const map = L.map('map').setView([31.7619, -106.4850], 11);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-        // Legend setup
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             let div = L.DomUtil.create('div', 'legend');
@@ -113,6 +140,7 @@
                 } catch (e) { console.error(`Error loading D${i}`); }
             }
             document.getElementById('loading').style.display = 'none';
+            runSimulation(); // Run layout default rendering instantly
         }
 
         function runSimulation() {
@@ -125,8 +153,11 @@
             const adus = document.getElementById('allow_adus').checked;
             const lotSplits = document.getElementById('allow_lot_splits').checked;
             const mansion = document.getElementById('mansion_conversions').checked;
+            const mm48 = document.getElementById('mm_4_8').checked;
+            const mm916 = document.getElementById('mm_9_16').checked;
             const midrise = document.getElementById('allow_midrise').checked;
             const midriseFloors = parseInt(document.getElementById('midrise_floors').value);
+            const elimParking = document.getElementById('elim_parking').checked;
 
             let districtTotals = { 1:{u:0,j:0}, 2:{u:0,j:0}, 3:{u:0,j:0}, 4:{u:0,j:0}, 5:{u:0,j:0}, 6:{u:0,j:0}, 7:{u:0,j:0}, 8:{u:0,j:0} };
 
@@ -154,6 +185,9 @@
                         if (adus) rawUnits += 1;
                         if (lotSplits && props.targetlotarea > 8000) rawUnits += 2;
                         if (mansion) rawUnits += 4;
+                        if (mm48) rawUnits += 6;
+                        if (mm916) rawUnits += 12;
+                        if (elimParking) rawUnits += 2; // Adding residential capacity layout bonus space expansion
                     }
                     if (isCom) {
                         rawJobs += 5; 
@@ -161,6 +195,7 @@
                             rawJobs += 15; 
                             rawUnits += (midriseFloors - 1) * 5; 
                         }
+                        if (elimParking) rawJobs += 5; // Extra design freedom bonus for job additions
                     }
 
                     districtTotals[d].u += (rawUnits * absorption);
@@ -178,10 +213,19 @@
                 const u = Math.round(districtTotals[i].u);
                 const j = Math.round(districtTotals[i].j);
                 grandUnits += u; grandJobs += j;
-                tbody.innerHTML += `<tr><td>D${i}</td><td>${u}</td><td>${j}</td></tr>`;
+                tbody.innerHTML += `<tr><td>D${i}</td><td>${u.toLocaleString()}</td><td>${j.toLocaleString()}</td></tr>`;
             }
-            document.getElementById('total-units').innerText = grandUnits;
-            document.getElementById('total-jobs').innerText = grandJobs;
+            document.getElementById('total-units').innerText = grandUnits.toLocaleString();
+            document.getElementById('total-jobs').innerText = grandJobs.toLocaleString();
+
+            // Dynamic Progress Target Banner Computations
+            const targetUnits = 35000;
+            const targetJobs = 55000;
+            const remainingUnits = Math.max(0, targetUnits - grandUnits);
+            const remainingJobs = Math.max(0, targetJobs - grandJobs);
+
+            document.getElementById('housing-banner-status').innerHTML = `Housing Target: ${targetUnits.toLocaleString()} <br><span style="color: ${remainingUnits > 0 ? '#007bff' : '#28a745'}">${remainingUnits > 0 ? 'Remaining: ' + remainingUnits.toLocaleString() : 'Target Met! 🎉'}</span>`;
+            document.getElementById('jobs-banner-status').innerHTML = `Jobs Target: ${targetJobs.toLocaleString()} <br><span style="color: ${remainingJobs > 0 ? '#d35400' : '#28a745'}">${remainingJobs > 0 ? 'Remaining: ' + remainingJobs.toLocaleString() : 'Target Met! 🎉'}</span>`;
 
             geojsonLayer.eachLayer(layer => {
                 const props = layer.feature.properties;

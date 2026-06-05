@@ -288,7 +288,11 @@
 
                 if (distFilter !== 'all' && d.toString() !== distFilter) props._isVisible = false;
                 if (transitOnly && props.in_corridor !== true) props._isVisible = false;
-                if (protectHistoric && props.in_historic === true) props._isVisible = false;
+                
+                // BULLETPROOF HISTORIC CHECK
+                if (protectHistoric && (props.in_historic === true || props.in_historic === 1 || String(props.in_historic).toLowerCase() === 'true')) {
+                    props._isVisible = false;
+                }
 
                 let rawUnits = 0, rawJobs = 0;
 

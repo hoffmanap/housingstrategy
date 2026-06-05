@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -249,6 +251,8 @@
 
         async function loadData() {
             document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').innerText = 'Loading Parcel Data...';
+            
             for (let i = 1; i <= 8; i++) {
                 try {
                     const res = await fetch(`data/Ready_Parcels_D${i}.geojson`);
@@ -259,6 +263,38 @@
                     }
                 } catch (e) { console.error(`Error loading D${i}`); }
             }
+
+            // DYNAMIC SPATIAL IMPORT: Fetch the external historic.geojson file
+            document.getElementById('loading').innerText = 'Loading Historic Boundaries...';
+            let historicData = null;
+            try {
+                let hRes = await fetch('data/historic.geojson');
+                if (!hRes.ok) hRes = await fetch('historic.geojson'); // Fallback to root directory
+                if (hRes.ok) historicData = await hRes.json();
+            } catch (e) { 
+                console.warn("Could not fetch historic.geojson"); 
+            }
+
+            // TURF.JS SPATIAL INTERSECTION
+            if (historicData && historicData.features) {
+                document.getElementById('loading').innerText = 'Processing Spatial Constraints...';
+                await new Promise(r => setTimeout(r, 50)); // Allow UI to update
+                
+                // Filter down to just polygon boundaries
+                let historicPolys = historicData.features.filter(f => f.geometry && f.geometry.type.includes('Polygon'));
+                
+                // Calculate Point-in-Polygon for every parcel
+                allParcels.forEach(parcel => {
+                    if (!parcel.geometry) return;
+                    try {
+                        let pt = turf.centroid(parcel);
+                        parcel.properties._computed_historic = historicPolys.some(poly => turf.booleanPointInPolygon(pt, poly));
+                    } catch(e) {
+                        parcel.properties._computed_historic = false;
+                    }
+                });
+            }
+
             document.getElementById('loading').style.display = 'none';
             runSimulation(); 
         }
@@ -289,9 +325,16 @@
                 if (distFilter !== 'all' && d.toString() !== distFilter) props._isVisible = false;
                 if (transitOnly && props.in_corridor !== true) props._isVisible = false;
                 
-                // BULLETPROOF HISTORIC CHECK
-                if (protectHistoric && (props.in_historic === true || props.in_historic === 1 || String(props.in_historic).toLowerCase() === 'true')) {
-                    props._isVisible = false;
+                // BULLETPROOF HISTORIC CHECK: Uses Turf computed boundary data
+                if (protectHistoric) {
+                    let isHist = props._computed_historic === true || 
+                                 props.in_historic === true || 
+                                 props.in_historic === 1 || 
+                                 String(props.in_historic).toLowerCase() === 'true';
+                    
+                    if (isHist) {
+                        props._isVisible = false;
+                    }
                 }
 
                 let rawUnits = 0, rawJobs = 0;

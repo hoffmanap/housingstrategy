@@ -4,57 +4,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>El Paso Housing Strategy Simulator</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f4f7f6; }
-        #sidebar { width: 420px; background: #ffffff; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; z-index: 1000; }
+        :root {
+            --primary: #3b82f6; /* Modern Blue */
+            --primary-hover: #2563eb;
+            --bg-color: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
+        
+        /* Modernized Sidebar */
+        #sidebar { 
+            width: 440px; 
+            background: var(--surface); 
+            padding: 32px 28px; 
+            box-shadow: 4px 0 24px rgba(0,0,0,0.06); 
+            overflow-y: auto; 
+            z-index: 1000; 
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
         #map { flex-grow: 1; position: relative; }
-        h2 { font-size: 18px; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 0;}
-        h3 { font-size: 14px; color: #555; margin-top: 15px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .control-group { margin-bottom: 12px; display: flex; align-items: center; font-size: 13px; color: #444; }
-        .control-group label { flex-grow: 1; margin-left: 5px;}
-        input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px;}
-        select, input[type="number"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
-        button:hover { background-color: #0056b3; }
         
-        /* Tooltip styling */
-        .info-icon { margin-left: 5px; cursor: help; color: #007bff; font-weight: bold; }
+        h2 { font-size: 22px; font-weight: 700; color: var(--text-main); margin-top: 0; margin-bottom: 24px; letter-spacing: -0.5px; }
+        h3 { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-top: 28px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1.2px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
         
-        .results { margin-top: 20px; background: #e9ecef; border-radius: 8px; padding: 15px; border-left: 4px solid #007bff; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        th, td { padding: 6px; text-align: right; border-bottom: 1px solid #ddd; }
-        th { background-color: #dee2e6; font-weight: bold; }
+        .control-group { margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 500; }
+        .control-label { display: flex; align-items: center; }
+        
+        /* Modern Inputs & Dropdowns */
+        select { 
+            padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; 
+            font-family: 'Inter', sans-serif; color: var(--text-main); background-color: var(--bg-color); 
+            outline: none; transition: border 0.2s, box-shadow 0.2s; cursor: pointer;
+        }
+        select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .full-width { width: 100%; }
+
+        /* Sleek Tooltip Icon */
+        .info-icon { margin-left: 6px; cursor: help; color: #94a3b8; font-weight: 600; font-size: 13px; transition: color 0.2s; }
+        .info-icon:hover { color: var(--primary); }
+        
+        /* Modern Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Range Slider */
+        .slider-container { display: flex; align-items: center; gap: 15px; width: 100%; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: var(--primary); cursor: pointer; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #cbd5e1; border-radius: 4px; }
+        .range-value { font-weight: 700; color: var(--primary); min-width: 40px; text-align: right; }
+
+        /* Primary Action Button */
+        button { 
+            width: 100%; padding: 14px; background-color: var(--text-main); color: white; 
+            border: none; border-radius: 8px; font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; margin-top: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.2s ease; 
+        }
+        button:hover { background-color: #334155; transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+
+        /* Results Table */
+        .results { margin-top: 32px; background: var(--bg-color); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+        .results h3 { margin-top: 0; border: none; padding: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { padding: 10px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
         td:first-child, th:first-child { text-align: left; }
-        .total-row { font-weight: bold; background-color: #d6dce1; }
+        .total-row { font-weight: 700; background-color: rgba(59, 130, 246, 0.05); color: var(--primary); font-size: 14px; border-top: 2px solid var(--border); }
+        .total-row td { border-bottom: none; }
         
-        #loading { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); border-left: 4px solid #f39c12; padding: 10px 15px; border-radius: 4px; font-weight: bold; z-index: 1000; display: none; }
+        #loading { position: absolute; top: 20px; right: 20px; background: var(--surface); border-left: 4px solid var(--warning); padding: 12px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; display: none; }
         
-        /* Interactive Target Dashboard Banner */
+        /* Interactive Target Dashboard Banner (Glassmorphism) */
         #target-banner {
             position: absolute;
-            top: 15px;
+            top: 24px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.96);
-            padding: 10px 25px;
-            border-radius: 6px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 20px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
             z-index: 1000;
             display: flex;
-            gap: 40px;
-            font-size: 13px;
-            font-weight: bold;
-            color: #333;
-            border-top: 4px solid #007bff;
-            text-align: center;
+            gap: 60px;
+            border: 1px solid rgba(255,255,255,0.4);
         }
         
-        /* Legend Styling */
-        .legend { background: white; padding: 10px; line-height: 1.5; color: #555; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+        .target-block { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .target-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; }
+        .target-value { font-size: 28px; font-weight: 800; color: var(--text-main); margin: 4px 0; letter-spacing: -1px; }
+        .target-remaining { font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 20px; background: rgba(0,0,0,0.03); }
+
+        /* Map Legend */
+        .legend { background: var(--surface); padding: 16px; line-height: 1.8; color: var(--text-main); font-weight: 500; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: 'Inter', sans-serif; font-size: 13px; border: 1px solid var(--border); }
+        .legend i { width: 16px; height: 16px; float: left; margin-right: 10px; margin-top: 3px; border-radius: 4px; opacity: 0.85; }
     </style>
 </head>
 <body>
@@ -64,7 +131,7 @@
 
         <h3>1. Base Scenario</h3>
         <div class="control-group">
-            <select id="scenario_select" style="width: 100%;">
+            <select id="scenario_select" class="full-width">
                 <option value="current">Current Land Use Stays</option>
                 <option value="residential">Residential Only</option>
                 <option value="commercial">Commercial Only</option>
@@ -74,28 +141,71 @@
 
         <h3>2. Filters & Constraints</h3>
         <div class="control-group">
-            <label>Rep District:</label>
-            <select id="filter_district"><option value="all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
+            <span class="control-label">Rep District</span>
+            <select id="filter_district">
+                <option value="all">All Districts</option>
+                <option value="1">District 1</option>
+                <option value="2">District 2</option>
+                <option value="3">District 3</option>
+                <option value="4">District 4</option>
+                <option value="5">District 5</option>
+                <option value="6">District 6</option>
+                <option value="7">District 7</option>
+                <option value="8">District 8</option>
+            </select>
         </div>
-        <div class="control-group"><input type="checkbox" id="filter_transit"><label>Transit Corridors Only</label></div>
-        <div class="control-group"><input type="checkbox" id="filter_historic" checked><label>Protect Historic Districts</label></div>
-        <div class="control-group"><label>Absorption Rate (%):</label><input type="number" id="absorption_rate" value="10" style="width: 60px;"></div>
+        <div class="control-group">
+            <span class="control-label">Transit Corridors Only</span>
+            <label class="switch"><input type="checkbox" id="filter_transit"><span class="slider"></span></label>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Protect Historic Districts</span>
+            <label class="switch"><input type="checkbox" id="filter_historic" checked><span class="slider"></span></label>
+        </div>
+        
+        <div style="margin-top: 16px; margin-bottom: 8px; font-size: 14px; font-weight: 500;">Absorption Rate</div>
+        <div class="slider-container">
+            <input type="range" id="absorption_rate" min="1" max="100" value="10" oninput="document.getElementById('abs_val').innerText = this.value + '%'">
+            <span id="abs_val" class="range-value">10%</span>
+        </div>
 
         <h3>3. Policy Interventions</h3>
-        <div class="control-group"><input type="checkbox" id="allow_adus"><label>Allow ADUs<span class="info-icon" title="Permits Accessory Dwelling Units on single-family lots.">ⓘ</span></label></div>
-        <div class="control-group"><input type="checkbox" id="allow_lot_splits"><label>Allow Lot Splits<span class="info-icon" title="Allows subdivision of large parcels into smaller buildable lots.">ⓘ</span></label></div>
-        <div class="control-group"><input type="checkbox" id="mansion_conversions"><label>Mansion Conversions<span class="info-icon" title="Converts existing large single-family structures into multiple smaller residential units.">ⓘ</span></label></div>
-        <div class="control-group"><input type="checkbox" id="mm_4_8"><label>Missing Middle (4-8 Units)<span class="info-icon" title="Permits multi-unit structures like duplexes up to 8 units in traditional zones.">ⓘ</span></label></div>
-        <div class="control-group"><input type="checkbox" id="mm_9_16"><label>Missing Middle (9-16 Units)<span class="info-icon" title="Enables medium-density developments between 9 and 16 units by-right.">ⓘ</span></label></div>
         <div class="control-group">
-            <input type="checkbox" id="allow_midrise"><label>Allow Midrise Development<span class="info-icon" title="Permits multi-story mixed-use buildings. Select allowable height on the dropdown menu.">ⓘ</span></label>
-            <select id="midrise_floors"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5" selected>5</option></select>
+            <span class="control-label">Allow ADUs<span class="info-icon" title="Permits Accessory Dwelling Units on single-family lots.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="allow_adus"><span class="slider"></span></label>
         </div>
-        <div class="control-group"><input type="checkbox" id="elim_parking"><label>No Parking Requirements<span class="info-icon" title="Eliminates off-street parking minimums to ensure layout space is no longer a constraint, maximizing expansion capabilities.">ⓘ</span></label></div>
+        <div class="control-group">
+            <span class="control-label">Allow Lot Splits<span class="info-icon" title="Allows subdivision of large parcels into smaller buildable lots.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="allow_lot_splits"><span class="slider"></span></label>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Mansion Conversions<span class="info-icon" title="Converts existing large single-family structures into multiple smaller residential units.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="mansion_conversions"><span class="slider"></span></label>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Missing Middle (4-8 Units)<span class="info-icon" title="Permits multi-unit structures like duplexes up to 8 units in traditional zones.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="mm_4_8"><span class="slider"></span></label>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Missing Middle (9-16 Units)<span class="info-icon" title="Enables medium-density developments between 9 and 16 units by-right.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="mm_9_16"><span class="slider"></span></label>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Allow Midrise Development<span class="info-icon" title="Permits multi-story mixed-use buildings. Select allowable height.">ⓘ</span></span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <select id="midrise_floors"><option value="2">2 Fl</option><option value="3">3 Fl</option><option value="4">4 Fl</option><option value="5" selected>5 Fl</option></select>
+                <label class="switch"><input type="checkbox" id="allow_midrise"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="control-group">
+            <span class="control-label">No Parking Requirements<span class="info-icon" title="Eliminates off-street parking minimums to ensure layout space is no longer a constraint.">ⓘ</span></span>
+            <label class="switch"><input type="checkbox" id="elim_parking"><span class="slider"></span></label>
+        </div>
 
         <button onclick="runSimulation()">Run Capacity Simulator</button>
 
         <div class="results">
+            <h3>Projected Impact</h3>
             <table>
                 <thead><tr><th>District</th><th>Units</th><th>Jobs</th></tr></thead>
                 <tbody id="results-body"></tbody>
@@ -106,26 +216,36 @@
 
     <div id="map">
         <div id="target-banner">
-            <div id="housing-banner-status">Housing Target: 35,000 <br><span style="color:#007bff;">Remaining: 35,000</span></div>
-            <div id="jobs-banner-status">Jobs Target: 55,000 <br><span style="color:#d35400;">Remaining: 55,000</span></div>
+            <div class="target-block" id="housing-banner-status">
+                <span class="target-title">Housing Target</span>
+                <span class="target-value">35,000</span>
+                <span class="target-remaining" style="color: var(--primary);">Remaining: 35,000</span>
+            </div>
+            <div class="target-block" id="jobs-banner-status">
+                <span class="target-title">Jobs Target</span>
+                <span class="target-value">55,000</span>
+                <span class="target-remaining" style="color: var(--warning);">Remaining: 55,000</span>
+            </div>
         </div>
-        <div id="loading">Loading...</div>
+        <div id="loading">Loading Data...</div>
     </div>
 
     <script>
-        const map = L.map('map').setView([31.7619, -106.4850], 11);
+        const map = L.map('map', { zoomControl: false }).setView([31.7619, -106.4850], 11);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             let div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>Legend</b><br><i style="background:#2980b9"></i> Housing<br><i style="background:#d35400"></i> Jobs';
+            div.innerHTML = '<div style="margin-bottom:6px; font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px;">Map Legend</div><i style="background:#3b82f6"></i> High Housing Potential<br><i style="background:#f59e0b"></i> High Job Potential';
             return div;
         };
         legend.addTo(map);
 
         let allParcels = [];
-        let geojsonLayer = L.geoJSON(null, { style: { color: "#95a5a6", weight: 1, fillOpacity: 0.2, fillColor: "#bdc3c7" } }).addTo(map);
+        let geojsonLayer = L.geoJSON(null, { style: { color: "#e2e8f0", weight: 1, fillOpacity: 0.2, fillColor: "#cbd5e1" } }).addTo(map);
 
         async function loadData() {
             document.getElementById('loading').style.display = 'block';
@@ -140,7 +260,7 @@
                 } catch (e) { console.error(`Error loading D${i}`); }
             }
             document.getElementById('loading').style.display = 'none';
-            runSimulation(); // Run layout default rendering instantly
+            runSimulation(); 
         }
 
         function runSimulation() {
@@ -187,7 +307,7 @@
                         if (mansion) rawUnits += 4;
                         if (mm48) rawUnits += 6;
                         if (mm916) rawUnits += 12;
-                        if (elimParking) rawUnits += 2; // Adding residential capacity layout bonus space expansion
+                        if (elimParking) rawUnits += 2; 
                     }
                     if (isCom) {
                         rawJobs += 5; 
@@ -195,7 +315,7 @@
                             rawJobs += 15; 
                             rawUnits += (midriseFloors - 1) * 5; 
                         }
-                        if (elimParking) rawJobs += 5; // Extra design freedom bonus for job additions
+                        if (elimParking) rawJobs += 5; 
                     }
 
                     districtTotals[d].u += (rawUnits * absorption);
@@ -218,20 +338,46 @@
             document.getElementById('total-units').innerText = grandUnits.toLocaleString();
             document.getElementById('total-jobs').innerText = grandJobs.toLocaleString();
 
-            // Dynamic Progress Target Banner Computations
+            // Refined Dynamic Progress Target Banner Computations
             const targetUnits = 35000;
             const targetJobs = 55000;
             const remainingUnits = Math.max(0, targetUnits - grandUnits);
             const remainingJobs = Math.max(0, targetJobs - grandJobs);
 
-            document.getElementById('housing-banner-status').innerHTML = `Housing Target: ${targetUnits.toLocaleString()} <br><span style="color: ${remainingUnits > 0 ? '#007bff' : '#28a745'}">${remainingUnits > 0 ? 'Remaining: ' + remainingUnits.toLocaleString() : 'Target Met! 🎉'}</span>`;
-            document.getElementById('jobs-banner-status').innerHTML = `Jobs Target: ${targetJobs.toLocaleString()} <br><span style="color: ${remainingJobs > 0 ? '#d35400' : '#28a745'}">${remainingJobs > 0 ? 'Remaining: ' + remainingJobs.toLocaleString() : 'Target Met! 🎉'}</span>`;
+            const unitColor = remainingUnits > 0 ? 'var(--primary)' : 'var(--success)';
+            const jobColor = remainingJobs > 0 ? 'var(--warning)' : 'var(--success)';
+            const unitBg = remainingUnits > 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)';
+            const jobBg = remainingJobs > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)';
+
+            document.getElementById('housing-banner-status').innerHTML = `
+                <span class="target-title">Housing Target</span>
+                <span class="target-value">${targetUnits.toLocaleString()}</span>
+                <span class="target-remaining" style="color: ${unitColor}; background: ${unitBg}">
+                    ${remainingUnits > 0 ? 'Remaining: ' + remainingUnits.toLocaleString() : 'Target Met! 🎉'}
+                </span>
+            `;
+
+            document.getElementById('jobs-banner-status').innerHTML = `
+                <span class="target-title">Jobs Target</span>
+                <span class="target-value">${targetJobs.toLocaleString()}</span>
+                <span class="target-remaining" style="color: ${jobColor}; background: ${jobBg}">
+                    ${remainingJobs > 0 ? 'Remaining: ' + remainingJobs.toLocaleString() : 'Target Met! 🎉'}
+                </span>
+            `;
 
             geojsonLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
                 if (!props._isVisible) { layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; }
                 const u = props._calcUnits || 0, j = props._calcJobs || 0;
-                layer.setStyle({ fillColor: (j > u) ? "#d35400" : (u > j ? "#2980b9" : "#bdc3c7"), fillOpacity: (u+j > 0) ? 0.6 : 0.1, stroke: true, opacity: 1, weight: 0.5 });
+                // Updated map colors to match the new UI palette
+                layer.setStyle({ 
+                    fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
+                    fillOpacity: (u+j > 0) ? 0.65 : 0.15, 
+                    stroke: true, 
+                    color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
+                    opacity: (u+j > 0) ? 0.8 : 0.3, 
+                    weight: 0.5 
+                });
             });
         }
         window.onload = loadData;

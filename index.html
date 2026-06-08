@@ -203,7 +203,13 @@
             <span class="control-label">No Parking Requirements<span class="info-icon" title="Eliminates off-street parking minimums to ensure layout space is no longer a constraint.">ⓘ</span></span>
             <label class="switch"><input type="checkbox" id="elim_parking"><span class="slider"></span></label>
         </div>
-
+        <div class="toggle-container">
+            <label>
+                <input type="checkbox" id="covenantToggle"> Enforce Deed Restrictions
+            </label>
+            <span class="tooltip" title="When active, dynamically overrides simulated capacity using constraints in covenants.geojson.">ℹ️</span>
+        </div>
+        
         <button onclick="runSimulation()">Run Capacity Simulator</button>
 
         <div class="results">

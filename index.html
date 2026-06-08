@@ -491,68 +491,68 @@
             `;
 
         geojsonLayer.eachLayer(layer => {
-                try {
-                    if (!layer.feature) return;
+    try {
+        if (!layer.feature) return;
 
-                    const feature = layer.feature;
-                    const props = feature.properties;
+        const feature = layer.feature;
+        const props = feature.properties;
 
-                    // Initial visibility check
-                    if (!props._isVisible) { 
-                        layer.setStyle({ opacity: 0, fillOpacity: 0 }); 
-                        return; 
+        // Initial visibility check
+        if (!props._isVisible) { 
+            layer.setStyle({ opacity: 0, fillOpacity: 0 }); 
+            return; 
+        }
+
+        // Covenant Logic
+        const covenantToggle = document.getElementById('covenantToggle');
+        const applyCovenants = covenantToggle ? covenantToggle.checked : false;
+
+        if (applyCovenants && window.covenantsData && window.covenantsData.features) {
+            let parcelPoint = turf.centroid(feature);
+            for (let covFeature of window.covenantsData.features) {
+                if (turf.booleanPointInPolygon(parcelPoint, covFeature)) {
+                    let covProps = covFeature.properties;
+                    let sfOnly = String(covProps['SINGLE FAMILY ONLY'] || "").toUpperCase();
+                    let allowCom = String(covProps.allow_com || "").toUpperCase();
+                    let allowMf = String(covProps.allow_mf || "").toUpperCase();
+
+                    if (typeof currentScenario !== 'undefined' && currentScenario === 'commercial_midrise') {
+                        if (allowCom === 'FALSE' || allowCom === '0' || allowCom === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
+                            props._calcJobs = 0; 
+                        }
                     }
-
-                    // Covenant Logic
-                    const covenantToggle = document.getElementById('covenantToggle');
-                    const applyCovenants = covenantToggle ? covenantToggle.checked : false;
-
-                    if (applyCovenants && window.covenantsData && window.covenantsData.features) {
-                        let parcelPoint = turf.centroid(feature);
-                        for (let covFeature of window.covenantsData.features) {
-                            if (turf.booleanPointInPolygon(parcelPoint, covFeature)) {
-                                let covProps = covFeature.properties;
-                                let sfOnly = String(covProps['SINGLE FAMILY ONLY'] || "").toUpperCase();
-                                let allowCom = String(covProps.allow_com || "").toUpperCase();
-                                let allowMf = String(covProps.allow_mf || "").toUpperCase();
-
-                                if (typeof currentScenario !== 'undefined' && currentScenario === 'commercial_midrise') {
-                                    if (allowCom === 'FALSE' || allowCom === '0' || allowCom === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
-                                        props._calcJobs = 0; 
-                                    }
-                                }
-                                
-                                if (typeof currentScenario !== 'undefined' && (currentScenario === 'residential_conversions' || currentScenario === 'commercial_midrise')) {
-                                    if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
-                                        props._calcUnits = 0; 
-                                    }
-                                }
-
-                                if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== "") {
-                                    let maxCap = parseInt(covProps.max_units, 10);
-                                    if (!isNaN(maxCap) && (props._calcUnits || 0) > maxCap) {
-                                        props._calcUnits = maxCap;
-                                    }
-                                }
-                                break;
-                            }
+                    
+                    if (typeof currentScenario !== 'undefined' && (currentScenario === 'residential_conversions' || currentScenario === 'commercial_midrise')) {
+                        if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
+                            props._calcUnits = 0; 
                         }
                     }
 
-                    // Rendering
-                    const u = props._calcUnits || 0, j = props._calcJobs || 0;
-                    layer.setStyle({ 
-                        fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
-                        fillOpacity: (u + j > 0) ? 0.65 : 0.15, 
-                        stroke: true, 
-                        color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
-                        opacity: (u + j > 0) ? 0.8 : 0.3, 
-                        weight: 0.5 
-                    });
-                } catch (err) {
-                    console.error("Skipping parcel:", err);
+                    if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== "") {
+                        let maxCap = parseInt(covProps.max_units, 10);
+                        if (!isNaN(maxCap) && (props._calcUnits || 0) > maxCap) {
+                            props._calcUnits = maxCap;
+                        }
+                    }
+                    break;
                 }
-            });
+            }
+        }
+
+        // Rendering
+        const u = props._calcUnits || 0, j = props._calcJobs || 0;
+        layer.setStyle({ 
+            fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
+            fillOpacity: (u + j > 0) ? 0.65 : 0.15, 
+            stroke: true, 
+            color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
+            opacity: (u + j > 0) ? 0.8 : 0.3, 
+            weight: 0.5 
+        });
+    } catch (err) {
+        console.error("Skipping parcel:", err);
+    }
+});
                 // --- END COVENANTS LOGIC ---
 
                 // Existing Rendering Logic

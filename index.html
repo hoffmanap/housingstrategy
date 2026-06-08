@@ -305,7 +305,16 @@
             document.getElementById('loading').style.display = 'none';
             runSimulation(); 
         }
-
+        // Use 'window.' to ensure it is globally accessible from anywhere in the app
+    window.covenantsData = null; 
+    
+    fetch('covenants.geojson')
+        .then(response => response.json())
+        .then(data => {
+            window.covenantsData = data;
+            console.log("Covenants loaded successfully.");
+        })
+        .catch(error => console.error("Error loading covenants:", error));
         function runSimulation() {
             const scenario = document.getElementById('scenario_select').value;
             const distFilter = document.getElementById('filter_district').value;

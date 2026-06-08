@@ -382,6 +382,40 @@
                     districtTotals[d].u += (rawUnits * absorption);
                     districtTotals[d].j += (rawJobs * absorption);
                 }
+                // --- APPLY COVENANTS & DEED RESTRICTIONS ---
+                const applyCovenants = document.getElementById('covenantToggle').checked;
+                if (applyCovenants && covenantsData) {
+                    let parcelPoint = turf.centroid(feature);
+                    for (let covFeature of covenantsData.features) {
+                        if (turf.booleanPointInPolygon(parcelPoint, covFeature)) {
+                            let covProps = covFeature.properties;
+
+                            // Rule 1: Commercial Use Restrictions
+                            if (currentScenario === 'commercial_midrise') {
+                                if (covProps.allow_com === false || covProps['SINGLE FAMILY ONLY'] === 'Y') {
+                                    simulatedJobs = 0; 
+                                }
+                            }
+                            
+                            // Rule 2: Multi-Family Use Restrictions
+                            if (currentScenario === 'residential_conversions' || currentScenario === 'commercial_midrise') {
+                                if (covProps.allow_mf === false || covProps['SINGLE FAMILY ONLY'] === 'Y') {
+                                    simulatedUnits = 0; 
+                                }
+                            }
+
+                            // Rule 3: Hard Caps on Units
+                            if (covProps.max_units !== null && covProps.max_units !== undefined && covProps.max_units !== "") {
+                                let maxCap = parseInt(covProps.max_units, 10);
+                                if (simulatedUnits > maxCap) {
+                                    simulatedUnits = maxCap;
+                                }
+                            }
+                            break; // Stop looking through other features once intersected
+                        }
+                    }
+                }
+                // --- END COVENANTS LOGIC ---
                 props._calcUnits = (rawUnits * absorption);
                 props._calcJobs = (rawJobs * absorption);
             });

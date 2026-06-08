@@ -555,19 +555,30 @@
 });
                 // --- END COVENANTS LOGIC ---
 
-                // Existing Rendering Logic
-                if (!props._isVisible) { layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; }
-                
-                const u = props._calcUnits || 0, j = props._calcJobs || 0;
-                
-                // Updated map colors to match the new UI palette
-                layer.setStyle({ 
-                    fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
-                    fillOpacity: (u+j > 0) ? 0.65 : 0.15, 
-                    stroke: true, 
-                    color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
-                    opacity: (u+j > 0) ? 0.8 : 0.3, 
-                    weight: 0.5 
+                // Rendering Logic
+try {
+    const props = layer.feature.properties;
+
+    // Initial visibility check
+    if (!props._isVisible) { 
+        layer.setStyle({ opacity: 0, fillOpacity: 0 }); 
+        return; 
+    }
+    
+    const u = props._calcUnits || 0, j = props._calcJobs || 0;
+    
+    // Updated map colors to match the new UI palette
+    layer.setStyle({ 
+        fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
+        fillOpacity: (u + j > 0) ? 0.65 : 0.15, 
+        stroke: true, 
+        color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
+        opacity: (u + j > 0) ? 0.8 : 0.3, 
+        weight: 0.5 
+    });
+} catch (err) {
+    // This catches issues if parcel data is missing
+}
                 });
             });
         window.onload = loadData;

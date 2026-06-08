@@ -283,7 +283,19 @@
             // DYNAMIC SPATIAL IMPORT: Fetch the external historic.geojson file
             document.getElementById('loading').innerText = 'Loading Historic Boundaries...';
             let historicData = null;
-        let covenantsData = null;
+        fetch('data/covenants.geojson') // Ensure the path includes 'data/'
+    .then(response => {
+        if (!response.ok) throw new Error('Covenants not found');
+        return response.json();
+    })
+    .then(data => {
+        window.covenantsData = data;
+        console.log("Covenants loaded successfully.");
+    })
+    .catch(error => {
+        console.warn("Covenants file could not be loaded, but simulator will continue.", error);
+        window.covenantsData = null; // Ensure it's null so the filter logic doesn't crash
+    });
             try {
                 let hRes = await fetch('data/historic.geojson');
                 if (!hRes.ok) hRes = await fetch('historic.geojson'); // Fallback to root directory

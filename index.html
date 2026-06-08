@@ -318,7 +318,7 @@
         // Use 'window.' to ensure it is globally accessible from anywhere in the app
     window.covenantsData = null; 
     
-    fetch('covenants.geojson')
+    fetch('data/covenants.geojson')
         .then(response => response.json())
         .then(data => {
             window.covenantsData = data;

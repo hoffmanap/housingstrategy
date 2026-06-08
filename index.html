@@ -375,6 +375,46 @@
                     districtTotals[d].u += (rawUnits * absorption);
                     districtTotals[d].j += (rawJobs * absorption);
                 }
+                // --- APPLY COVENANTS & DEED RESTRICTIONS ---
+                const applyCovenants = document.getElementById('covenantToggle').checked;
+                
+                if (applyCovenants && typeof covenantsData !== 'undefined' && covenantsData) {
+                    let parcelPoint = turf.centroid(feature);
+                    for (let covFeature of covenantsData.features) {
+                        if (turf.booleanPointInPolygon(parcelPoint, covFeature)) {
+                            let covProps = covFeature.properties;
+                            
+                            // Aggressively format the QGIS/ArcGIS fields to text
+                            let sfOnly = String(covProps['SINGLE FAMILY ONLY']).toUpperCase();
+                            let allowCom = String(covProps.allow_com).toUpperCase();
+                            let allowMf = String(covProps.allow_mf).toUpperCase();
+
+                            // Rule 1: Commercial Use Restrictions
+                            if (currentScenario === 'commercial_midrise') {
+                                if (allowCom === 'FALSE' || allowCom === '0' || allowCom === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
+                                    simulatedJobs = 0; 
+                                }
+                            }
+                            
+                            // Rule 2: Multi-Family Use Restrictions
+                            if (currentScenario === 'residential_conversions' || currentScenario === 'commercial_midrise') {
+                                if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
+                                    simulatedUnits = 0; 
+                                }
+                            }
+
+                            // Rule 3: Hard Caps on Units
+                            if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== "") {
+                                let maxCap = parseInt(covProps.max_units, 10);
+                                if (!isNaN(maxCap) && simulatedUnits > maxCap) {
+                                    simulatedUnits = maxCap;
+                                }
+                            }
+                            break; // Stop looking through other features once intersected
+                        }
+                    }
+                }
+                // --- END COVENANTS LOGIC ---
                 props._calcUnits = (rawUnits * absorption);
                 props._calcJobs = (rawJobs * absorption);
             });

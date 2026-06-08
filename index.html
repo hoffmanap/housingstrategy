@@ -280,6 +280,13 @@
                 if (hRes.ok) historicData = await hRes.json();
             } catch (e) { 
                 console.warn("Could not fetch historic.geojson"); 
+           fetch('covenants.geojson')
+            .then(response => response.json())
+            .then(data => {
+                covenantsData = data;
+                console.log("Covenants loaded successfully.");
+            })
+            .catch(error => console.error("Error loading covenants:", error));     
             }
 
             // TURF.JS SPATIAL INTERSECTION

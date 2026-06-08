@@ -41,7 +41,17 @@
             display: flex;
             flex-direction: column;
         }
-
+        /* Add this to your <style> section */
+        .toggle-container {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            margin: 15px 0 !important;
+            padding: 10px !important;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+        }
         #map { flex-grow: 1; position: relative; }
         
         h2 { font-size: 22px; font-weight: 700; color: var(--text-main); margin-top: 0; margin-bottom: 24px; letter-spacing: -0.5px; }

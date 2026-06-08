@@ -567,7 +567,7 @@ try {
     
     const u = props._calcUnits || 0, j = props._calcJobs || 0;
     
-    // Updated map colors to match the new UI palette
+// Updated map colors to match the new UI palette
     layer.setStyle({ 
         fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
         fillOpacity: (u + j > 0) ? 0.65 : 0.15, 

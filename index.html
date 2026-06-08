@@ -384,7 +384,7 @@
                 }
                 // --- APPLY COVENANTS & DEED RESTRICTIONS ---
                 const applyCovenants = document.getElementById('covenantToggle').checked;
-                if (applyCovenants && covenantsData) {
+                if (applyCovenants && typeof covenantsData !== 'undefined' && covenantsData) {
                     let parcelPoint = turf.centroid(feature);
                     for (let covFeature of covenantsData.features) {
                         if (turf.booleanPointInPolygon(parcelPoint, covFeature)) {

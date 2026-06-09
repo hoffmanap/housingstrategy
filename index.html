@@ -483,11 +483,17 @@
                     const isProtectedHistoric = (applyHistoricProtection && props._inHistoric);
                     const isOutsideTransit = (applyTransitOnly && !props._inTransit);
 
-                    if (activePolicies.length > 0 && !isProtectedHistoric && !isOutsideTransit) {
+                    // FIX 1: Removed the "activePolicies.length > 0" requirement from this main block
+                    // This allows Base Scenarios to calculate independently
+                    if (!isProtectedHistoric && !isOutsideTransit) {
                         
-                        const isVacant = ["A7", "A8", "C1", "C10"].includes(propertyTag);
+                        // FIX 2: Relaxed the "Underutilized" requirement for Mixed and Commercial scenarios
+                        // so jobs aren't immediately disqualified just because a building exists on the lot.
+                        const isVacant = propertyTag.includes("A7") || propertyTag.includes("A8") || propertyTag.includes("C1") || propertyTag.includes("C10") || propertyTag.includes("VACANT");
                         const bldgRatio = (lotSqft > 0) ? (bldgSqft / lotSqft) : 1;
-                        const meetsUnderutilized = isVacant || (bldgRatio < 0.15) || (existingUnits === 0 && bldgSqft === 0);
+                        
+                        const isUpzoning = (baseScenario === 'mixed' || baseScenario === 'commercial');
+                        const meetsUnderutilized = isVacant || (bldgRatio < (isUpzoning ? 0.45 : 0.15)) || (existingUnits === 0 && bldgSqft === 0);
 
                         let maxNetUnits = 0;
                         let maxNetJobs = 0;
@@ -524,7 +530,7 @@
                             if (net_j > maxNetJobs) maxNetJobs = net_j;
                         });
 
-                        // Ensure Base Scenarios Generate Jobs Separately from Housing Checkboxes
+                        // Base Scenarios Generate Jobs Separately 
                         if (baseScenario === 'commercial') {
                             maxNetUnits = 0; 
                             if (meetsUnderutilized) maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.4) / 300);
@@ -532,13 +538,15 @@
                             if (meetsUnderutilized) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.25) / 300);
                                 // If they didn't explicitly select a housing policy, give them standard mixed yield
-                                if (maxNetUnits === 0) maxNetUnits = (lotSqft * 0.25) / 850; 
+                                if (maxNetUnits === 0 && activePolicies.length === 0) {
+                                    maxNetUnits = (lotSqft * 0.25) / 850; 
+                                }
                             }
                         } else if (baseScenario === 'residential') {
                             maxNetJobs = 0; 
                         } else {
                             // Current Use Base Scenario: Grant jobs only if currently zoned for commerce
-                            if (meetsUnderutilized && (propertyTag.includes('C1') || propertyTag.includes('C10') || propertyTag.includes('COMM'))) {
+                            if (meetsUnderutilized && (propertyTag.includes('C1') || propertyTag.includes('C2') || propertyTag.includes('COMM') || propertyTag.includes('RET'))) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.25) / 300);
                             }
                         }

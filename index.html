@@ -127,11 +127,11 @@
         .stat-box:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .stat-value { font-weight: 700; color: var(--primary); font-size: 16px;}
         
-        /* Loading Overlay to mask slow rendering */
+        /* Loading Overlay */
         #loading-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.85);
+            background: rgba(255,255,255,0.95);
             z-index: 9999;
             display: flex;
             justify-content: center;
@@ -139,12 +139,15 @@
             font-size: 18px;
             font-weight: 600;
             color: var(--primary);
+            flex-direction: column;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading-overlay">Loading Map Data & Compiling Geometries...</div>
+    <div id="loading-overlay">
+        <div id="loading-text">Loading Map Data & Compiling Geometries...</div>
+    </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
@@ -233,14 +236,15 @@
 
         async function loadData() {
             try {
-                // 1. Fetch supplementary spatial data gracefully
-                historicPolygons = await fetchGeoJSON('historic.geojson');
-                deedRestrictionPolygons = await fetchGeoJSON('deed_restrictions.geojson');
-                transitPolygons = await fetchGeoJSON('transit_corridors.geojson');
+                // 1. Fetch supplementary spatial data gracefully (Using explicit relative paths)
+                historicPolygons = await fetchGeoJSON('./historic.geojson');
+                deedRestrictionPolygons = await fetchGeoJSON('./deed_restrictions.geojson');
+                transitPolygons = await fetchGeoJSON('./transit_corridors.geojson');
 
                 // 2. Fetch Core Parcel Data
-                const response = await fetch('parcels.geojson');
-                if (!response.ok) throw new Error("parcels.geojson failed to load");
+                const response = await fetch('./parcels.geojson');
+                if (!response.ok) throw new Error("parcels.geojson failed to load with status " + response.status);
+                
                 rawData = await response.json();
                 
                 // 3. Pre-process parcels with Turf.js safely
@@ -312,7 +316,20 @@
 
             } catch (error) {
                 console.error("Critical error loading data:", error);
-                document.getElementById('loading-overlay').innerText = "Error Loading Map Data. Please check console.";
+                document.getElementById('loading-overlay').innerHTML = `
+                    <div style="text-align:center; max-width: 600px; padding: 20px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <h2 style="color: #ef4444; margin-top: 0;">Data File Missing (404 Error)</h2>
+                        <p style="color: #334155; font-size: 16px;">The map cannot load because your web browser cannot find the required <b>.geojson</b> files.</p>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 6px; text-align: left; margin: 20px 0; border: 1px solid #e2e8f0;">
+                            <strong style="color: #0f172a;">How to fix this:</strong>
+                            <ol style="color: #334155; margin-bottom: 0; line-height: 1.6;">
+                                <li>Ensure <code>parcels.geojson</code> is saved in the exact same folder as this <code>index.html</code> file.</li>
+                                <li>Ensure the file name is entirely lowercase (GitHub is case-sensitive).</li>
+                                <li>If you are using GitHub Pages, make sure you have committed and pushed the data files to the server.</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
             }
         }
 

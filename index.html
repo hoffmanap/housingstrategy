@@ -303,7 +303,6 @@
 
         async function loadData() {
             try {
-                // Fetch the boundaries normally
                 historicPolygons = await fetchGeoJSON(DATA_PATH + 'historic.geojson');
                 deedRestrictionPolygons = await fetchGeoJSON(DATA_PATH + 'covenants.geojson');
                 transitPolygons = await fetchGeoJSON(DATA_PATH + 'transit_corridors.geojson');
@@ -361,11 +360,10 @@
 
                 if (rawData.features.length === 0) throw new Error("No parcels loaded.");
 
-                // YIELD TO MAIN THREAD: Gives the browser a split second to update text so it doesn't freeze
                 document.getElementById('loading-text').innerText = "Running Spatial Analysis (This may take a moment)...";
                 await new Promise(resolve => setTimeout(resolve, 50));
 
-                // Spatial tagging with Distance Check (Replaces heavy buffer)
+                // Spatial tagging with Distance Check
                 rawData.features.forEach(feature => {
                     const p = feature.properties;
                     let pt = null;
@@ -376,7 +374,6 @@
                             p._inHistoric = historicPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
                         }
 
-                        // Transit Check utilizing Distance rather than drawing heavy buffer shapes
                         p._inTransit = (String(p.transit_corridor).toUpperCase() === 'Y' || String(p.transit_corridor).toUpperCase() === 'TRUE');
                         if (!p._inTransit && transitPolygons.length > 0) {
                             pt = pt || turf.centroid(feature);
@@ -385,7 +382,6 @@
                                     if (geom.geometry.type.includes('Polygon')) {
                                         return turf.booleanPointInPolygon(pt, geom);
                                     } else if (geom.geometry.type.includes('Line')) {
-                                        // 0.5 Miles Distance Math
                                         return turf.pointToLineDistance(pt, geom, {units: 'miles'}) <= 0.5;
                                     }
                                 } catch(e){}
@@ -426,7 +422,7 @@
 
         // Bivariate Colors
         function getBivariateStyle(u, j) {
-            if (u === 0 && j === 0) return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
+            if (u < 0.5 && j < 0.5) return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
             let total = u + j;
             let fColor, sColor;
             if (u > j) { 
@@ -528,22 +524,38 @@
                             if (net_j > maxNetJobs) maxNetJobs = net_j;
                         });
 
-                        if (hasParkingBoost) {
-                            if (activePolicies.length === 1 && meetsUnderutilized) {
-                                maxNetUnits = Math.max(maxNetUnits, Math.floor(lotSqft / 5000));
-                            } else {
-                                maxNetUnits = Math.floor(maxNetUnits * 1.20); 
+                        // Ensure Base Scenarios Generate Jobs Separately from Housing Checkboxes
+                        if (baseScenario === 'commercial') {
+                            maxNetUnits = 0; 
+                            if (meetsUnderutilized) maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.4) / 300);
+                        } else if (baseScenario === 'mixed') {
+                            if (meetsUnderutilized) {
+                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.25) / 300);
+                                // If they didn't explicitly select a housing policy, give them standard mixed yield
+                                if (maxNetUnits === 0) maxNetUnits = (lotSqft * 0.25) / 850; 
+                            }
+                        } else if (baseScenario === 'residential') {
+                            maxNetJobs = 0; 
+                        } else {
+                            // Current Use Base Scenario: Grant jobs only if currently zoned for commerce
+                            if (meetsUnderutilized && (propertyTag.includes('C1') || propertyTag.includes('C10') || propertyTag.includes('COMM'))) {
+                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.25) / 300);
                             }
                         }
 
-                        if (baseScenario === 'residential') maxNetJobs = 0;
-                        if (baseScenario === 'commercial') maxNetUnits = 0;
-                        if (baseScenario === 'mixed' && maxNetUnits > 4 && maxNetJobs === 0) {
-                            maxNetJobs = Math.floor(lotSqft * 0.2 / 300); 
+                        if (hasParkingBoost) {
+                            if (activePolicies.length === 1 && meetsUnderutilized) {
+                                maxNetUnits = Math.max(maxNetUnits, lotSqft / 5000);
+                                if (baseScenario !== 'residential') maxNetJobs = Math.max(maxNetJobs, lotSqft / 3000);
+                            } else {
+                                maxNetUnits *= 1.20; 
+                                maxNetJobs *= 1.20; 
+                            }
                         }
 
-                        finalUnits = Math.round(maxNetUnits * absorptionRate);
-                        finalJobs = Math.round(maxNetJobs * absorptionRate);
+                        // THE PROBABILITY FIX: Maintain calculations as floats so small policies survive
+                        finalUnits = maxNetUnits * absorptionRate;
+                        finalJobs = maxNetJobs * absorptionRate;
 
                         if (applyCovenants && props._hasDeedRestriction) {
                             let d = props._deedProps;
@@ -555,6 +567,7 @@
                                 finalUnits = 0;
                             } else if (sfOnly === 'Y' || sfOnly === 'TRUE' || sfOnly === 'YES') {
                                 if (finalUnits > 1) finalUnits = 0; 
+                                finalJobs = 0; // Protects single-family character from commercial jobs
                             } else if (allowMf === 'FALSE' || allowMf === 'N' || allowMf === 'NO') {
                                 if (finalUnits > 2) finalUnits = 0; 
                             }
@@ -576,8 +589,9 @@
                     layer.setStyle(getBivariateStyle(finalUnits, finalJobs));
                 }); 
 
-                document.getElementById('banner-rem-units').innerText = Math.max(0, 35000 - totalNetUnits).toLocaleString();
-                document.getElementById('banner-rem-jobs').innerText = Math.max(0, 55000 - totalNetJobs).toLocaleString();
+                // Round data directly at the UI Output to keep probability math accurate
+                document.getElementById('banner-rem-units').innerText = Math.max(0, Math.round(35000 - totalNetUnits)).toLocaleString();
+                document.getElementById('banner-rem-jobs').innerText = Math.max(0, Math.round(55000 - totalNetJobs)).toLocaleString();
                 
                 document.getElementById('banner-rem-units').style.color = (totalNetUnits >= 35000) ? 'var(--success)' : '#64748b';
                 document.getElementById('banner-rem-jobs').style.color = (totalNetJobs >= 55000) ? 'var(--success)' : '#64748b';
@@ -586,14 +600,14 @@
                 for (let i = 1; i <= 8; i++) {
                     tableHTML += `<tr>
                         <td>District ${i}</td>
-                        <td style="color:var(--housing);">${districtTotals[i].u.toLocaleString()}</td>
-                        <td style="color:var(--jobs);">${districtTotals[i].j.toLocaleString()}</td>
+                        <td style="color:var(--housing);">${Math.round(districtTotals[i].u).toLocaleString()}</td>
+                        <td style="color:var(--jobs);">${Math.round(districtTotals[i].j).toLocaleString()}</td>
                     </tr>`;
                 }
                 tableHTML += `<tr class="total-row">
                     <td>TOTAL</td>
-                    <td style="color:var(--housing);">${totalNetUnits.toLocaleString()}</td>
-                    <td style="color:var(--jobs);">${totalNetJobs.toLocaleString()}</td>
+                    <td style="color:var(--housing);">${Math.round(totalNetUnits).toLocaleString()}</td>
+                    <td style="color:var(--jobs);">${Math.round(totalNetJobs).toLocaleString()}</td>
                 </tr>`;
                 document.getElementById('table-body').innerHTML = tableHTML;
 

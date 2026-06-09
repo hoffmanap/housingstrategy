@@ -593,7 +593,18 @@
                             districtTotals[props._district].j += finalJobs;
                         }
                     }
-
+                    
+// --- NEW LOGIC: Deed Restriction Override Toggle ---
+                    const deedToggle = document.getElementById('toggleDeedRestrictions');
+                    if (deedToggle && deedToggle.checked && deedRestrictionLayer) {
+                        // Use Turf.js to check if the current parcel intersects the restriction data
+                        // deedRestrictionLayer needs to be a valid GeoJSON object
+                        const isRestricted = turf.booleanIntersects(layer.feature, deedRestrictionLayer);
+                        if (isRestricted) {
+                            finalUnits = 0;
+                            finalJobs = 0;
+                        }
+                    }
                     layer.setStyle(getBivariateStyle(finalUnits, finalJobs));
                 }); 
 

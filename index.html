@@ -46,7 +46,7 @@
             flex-grow: 1; 
             height: 100vh; 
         }
-        .control-group { margin-bottom: 25px; position: relative; }
+        .control-group { margin-bottom: 20px; position: relative; }
         label { 
             display: flex; 
             align-items: center; 
@@ -139,8 +139,9 @@
             </label>
             <select id="scenario">
                 <option value="none">No Intervention</option>
-                <option value="commercial_midrise">Commercial Midrise (5-Story)</option>
                 <option value="residential_conversions">Residential Conversions</option>
+                <option value="commercial_midrise">Commercial Midrise (5-Story)</option>
+                <option value="transit_oriented">Transit-Oriented Development</option>
             </select>
         </div>
 
@@ -190,87 +191,76 @@
         // Initialize Map
         const map = L.map('map').setView([31.7619, -106.4850], 11);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         let geojsonLayer = null;
         let historicPolygons = [];
         let deedRestrictionPolygons = [];
+        let transitPolygons = [];
         let rawData = null;
 
         async function loadData() {
             try {
-                // 1. Fetch Historic Boundaries (Optional, won't crash if missing)
+                // 1. Fetch Constraints (Degrades gracefully if files are missing)
                 try {
                     const histRes = await fetch('historic.geojson');
-                    if (histRes.ok) {
-                        const histData = await histRes.json();
-                        historicPolygons = histData.features;
-                    }
-                } catch(e) { console.warn("Could not load historic.geojson"); }
+                    if (histRes.ok) historicPolygons = (await histRes.json()).features;
+                } catch(e) { console.warn("Historic constraints missing."); }
 
-                // 2. Fetch Deed Restrictions (Optional, won't crash if missing)
                 try {
                     const deedRes = await fetch('deed_restrictions.geojson');
-                    if (deedRes.ok) {
-                        const deedData = await deedRes.json();
-                        deedRestrictionPolygons = deedData.features;
-                    }
-                } catch(e) { console.warn("Could not load deed_restrictions.geojson"); }
+                    if (deedRes.ok) deedRestrictionPolygons = (await deedRes.json()).features;
+                } catch(e) { console.warn("Deed restrictions missing."); }
 
-                // 3. Fetch Core Parcel Data
+                try {
+                    const transitRes = await fetch('transit_corridors.geojson');
+                    if (transitRes.ok) transitPolygons = (await transitRes.json()).features;
+                } catch(e) { console.warn("Transit corridors missing."); }
+
+                // 2. Fetch Core Parcel Data
                 const response = await fetch('parcels.geojson');
                 rawData = await response.json();
                 
-                // 4. Pre-process parcels with Turf.js Spatial Analysis
+                // 3. Pre-process parcels with Turf.js
                 rawData.features.forEach(feature => {
                     if (!feature.properties) feature.properties = {};
                     
-                    // Safety check for null fields to prevent ".includes is not a function" errors
-                    feature.properties.zoning = feature.properties.zoning || "";
-                    feature.properties.land_use = feature.properties.land_use || "";
-                    feature.properties.property_tag = String(feature.properties.property_tag || "");
-                    feature.properties.existing_units = feature.properties.existing_units || 0;
+                    // Safety checks: ensure strings aren't null
+                    const p = feature.properties;
+                    p.zoning = p.zoning || "";
+                    p.land_use = p.land_use || "";
+                    p.property_tag = String(p.property_tag || "");
 
                     let pt;
-                    try {
-                        pt = turf.centerOfMass(feature);
-                    } catch(e) {
+                    try { pt = turf.centerOfMass(feature); } catch(e) {
                         try { pt = turf.centroid(feature); } catch(err) { return; }
                     }
 
-                    // A. Historic Check
-                    feature.properties._inHistoric = false;
-                    for (let poly of historicPolygons) {
-                        if (turf.booleanPointInPolygon(pt, poly)) {
-                            feature.properties._inHistoric = true;
-                            break;
-                        }
-                    }
-
-                    // B. Deed Restrictions Check
-                    feature.properties._hasDeedRestriction = false;
-                    feature.properties._deedProps = {};
+                    // Spatial Intersections
+                    p._inHistoric = historicPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
+                    p._inTransit = transitPolygons.some(poly => turf.booleanPointInPolygon(pt, poly)) || String(p.transit_corridor).toUpperCase() === 'Y';
+                    
+                    p._hasDeedRestriction = false;
+                    p._deedProps = {};
                     for (let poly of deedRestrictionPolygons) {
                         if (turf.booleanPointInPolygon(pt, poly)) {
-                            feature.properties._hasDeedRestriction = true;
-                            // Attach the specific rules from that deed polygon to the parcel
-                            feature.properties._deedProps = poly.properties || {};
+                            p._hasDeedRestriction = true;
+                            p._deedProps = poly.properties || {};
                             break;
                         }
                     }
                 });
 
-                // Render initial basemap layer
+                // 4. Initial Render
                 geojsonLayer = L.geoJSON(rawData, {
-                    style: function(feature) {
+                    style: function() {
                         return { fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', weight: 0.5, opacity: 0.3 };
                     }
                 }).addTo(map);
 
-                console.log("Initialization complete. Map ready.");
             } catch (error) {
-                console.error("Critical error loading parcel data:", error);
+                console.error("Critical error loading data:", error);
             }
         }
 
@@ -284,91 +274,94 @@
             let totalNetUnits = 0;
             let totalNetJobs = 0;
 
-            // Loop through all parcels
+            // This is the SINGLE eachLayer loop. No duplicated closures!
             geojsonLayer.eachLayer(function(layer) {
                 const props = layer.feature.properties;
                 
-                // Reset calculations
+                // Reset calculations for this parcel
                 props._calcUnits = 0;
                 props._calcJobs = 0;
                 props._isVisible = true;
 
-                // 1. HARD FILTERS
-                // If the parcel sits in a historic district, it is completely skipped
+                // --- CONSTRAINT 1: Historic Districts ---
                 if (props._inHistoric) {
                     props._isVisible = false;
                     layer.setStyle({ opacity: 0, fillOpacity: 0 }); 
-                    return; 
+                    return; // Skip calculation and rendering
                 }
 
                 try {
-                    const existingUnits = props.existing_units || 0;
+                    // Force text to numbers to prevent calculation failures
+                    const existingUnits = parseInt(props.existing_units, 10) || 0;
+                    const lotSqft = parseFloat(props.lot_sqft) || 1; 
+                    const bldgSqft = parseFloat(props.building_sqft) || 0;
+
                     let grossNewUnits = 0;
                     let grossNewJobs = 0;
 
-                    // 2. CAPACITY CALCULATIONS
+                    // --- FILTER: Vacant or Underutilized ---
                     const isVacant = ["A7", "A8", "C1", "C10"].includes(props.property_tag.toUpperCase());
-                    const bldgRatio = (props.building_sqft || 0) / (props.lot_sqft || 1);
-                    const meetsUnderutilized = isVacant || bldgRatio < 0.15;
+                    const bldgRatio = bldgSqft / lotSqft;
+                    const meetsUnderutilized = isVacant || (bldgRatio < 0.15);
 
-                    if (currentScenario === 'commercial_midrise') {
-                        if (meetsUnderutilized) {
-                            const footprint = (props.lot_sqft || 0) * 0.5;
-                            grossNewUnits = Math.floor((footprint * 4) / 850);
-                            grossNewJobs = Math.floor(footprint / 300);
+                    // --- SCENARIO LOGIC ---
+                    if (currentScenario === 'commercial_midrise' && meetsUnderutilized) {
+                        const footprint = lotSqft * 0.5;
+                        grossNewUnits = Math.floor((footprint * 4) / 850);
+                        grossNewJobs = Math.floor(footprint / 300);
+                        
+                    } else if (currentScenario === 'residential_conversions' && meetsUnderutilized) {
+                        if (lotSqft > 6000) {
+                            grossNewUnits = 16;
+                        } else if (lotSqft > 5000) {
+                            grossNewUnits = 8;
                         }
-                    } else if (currentScenario === 'residential_conversions') {
-                        if (meetsUnderutilized) {
-                            if (props.lot_sqft > 6000) {
-                                grossNewUnits = 16;
-                            } else if (props.lot_sqft > 5000) {
-                                grossNewUnits = 8;
-                            }
-                        }
+
+                    } else if (currentScenario === 'transit_oriented' && meetsUnderutilized && props._inTransit) {
+                        // Transit Corridor specific density
+                        grossNewUnits = Math.floor((lotSqft / 43560) * 65); // e.g., 65 units/acre 
+                        grossNewJobs = Math.floor(lotSqft / 500); // Mixed use job estimate
                     }
 
-                    // 3. PROBABILITY & NET YIELD
+                    // --- ABSORPTION & NET YIELD ---
                     let likelyUnits = Math.round(grossNewUnits * absorptionRate);
                     let likelyJobs = Math.round(grossNewJobs * absorptionRate);
 
                     props._calcUnits = Math.max(0, likelyUnits - existingUnits);
                     props._calcJobs = likelyJobs;
 
-                    // --- DEED RESTRICTIONS (COVENANTS) LOGIC ---
-                    if (applyDeedRestrictions && props._hasDeedRestriction) {
+                    // --- CONSTRAINT 2: Deed Restrictions ---
+                    if (applyDeedRestrictions && props._hasDeedRestriction && currentScenario !== 'none') {
                         const covProps = props._deedProps;
-                        
-                        // Treat missing fields gracefully to prevent crashes
                         const allowMf = String(covProps.allowMf || 'TRUE').toUpperCase();
                         const sfOnly = String(covProps.sfOnly || 'FALSE').toUpperCase();
 
-                        if (currentScenario === 'residential_conversions' || currentScenario === 'commercial_midrise') {
-                            if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
-                                props._calcUnits = 0; // Wipe out housing gains due to restrictions
-                            }
+                        // Wipe units if multi-family is forbidden
+                        if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
+                            props._calcUnits = 0; 
                         }
 
-                        // Apply hard max_units caps if the deed restriction defined them
-                        if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== "") {
+                        // Cap units if a hard max is set
+                        if (covProps.max_units) {
                             let maxCap = parseInt(covProps.max_units, 10);
                             if (!isNaN(maxCap) && props._calcUnits > maxCap) {
                                 props._calcUnits = maxCap;
                             }
                         }
                     }
-                    // --- END COVENANTS LOGIC ---
 
-                    // Tally totals
+                    // Tally dashboard totals
                     totalNetUnits += props._calcUnits;
                     totalNetJobs += props._calcJobs;
 
                 } catch(err) {
-                    console.error("Calculation error on parcel:", err);
+                    console.error("Calculation error:", err);
                 }
 
-                // 4. RENDERING LOGIC (Consolidated and Fixed)
+                // --- RENDERING LOGIC ---
                 try {
-                    const u = props._calcUnits || 0, j = props._calcJobs || 0;
+                    const u = props._calcUnits;
+                    const j = props._calcJobs;
                     
                     if (u === 0 && j === 0) {
                         layer.setStyle({
@@ -384,17 +377,14 @@
                             weight: 0.5 
                         });
                     }
-                } catch (err) {
-                    console.error("Skipping parcel rendering:", err);
-                }
-            }); // <-- IMPORTANT: This single tag perfectly closes the eachLayer loop.
+                } catch (err) {}
+            }); // <-- This securely closes the entire loop
 
-            // 5. UPDATE DASHBOARD
+            // Update Dashboard UI
             document.getElementById('total-units').innerText = totalNetUnits.toLocaleString();
             document.getElementById('total-jobs').innerText = totalNetJobs.toLocaleString();
         }
 
-        // Fire load event automatically
         window.onload = loadData;
     </script>
 </body>

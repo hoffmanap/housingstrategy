@@ -146,11 +146,26 @@
 <body>
 
     <div id="loading-overlay">
-        <div id="loading-text">Loading Map Data & Compiling Geometries...</div>
+        <div id="loading-text">Loading Map Data (This may take a moment for all 8 Districts)...</div>
     </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
+
+        <div class="control-group">
+            <label>Representative District</label>
+            <select id="districtFilter" onchange="runSimulation()">
+                <option value="all">Citywide (All Districts)</option>
+                <option value="1">District 1</option>
+                <option value="2">District 2</option>
+                <option value="3">District 3</option>
+                <option value="4">District 4</option>
+                <option value="5">District 5</option>
+                <option value="6">District 6</option>
+                <option value="7">District 7</option>
+                <option value="8">District 8</option>
+            </select>
+        </div>
         
         <div class="control-group">
             <label>Zoning Intervention 
@@ -218,9 +233,12 @@
         let historicPolygons = [];
         let deedRestrictionPolygons = [];
         let transitPolygons = [];
-        let rawData = null;
+        let rawData = { type: "FeatureCollection", features: [] };
+        
+        // Define base path to data folder
+        const DATA_PATH = './data/';
 
-        // Bulletproof JSON Fetcher
+        // Bulletproof JSON Fetcher for helper files
         async function fetchGeoJSON(url) {
             try {
                 const res = await fetch(url);
@@ -236,23 +254,57 @@
 
         async function loadData() {
             try {
-                // 1. Fetch supplementary spatial data gracefully (Using explicit relative paths)
-                historicPolygons = await fetchGeoJSON('./historic.geojson');
-                deedRestrictionPolygons = await fetchGeoJSON('./deed_restrictions.geojson');
-                transitPolygons = await fetchGeoJSON('./transit_corridors.geojson');
+                // 1. Fetch supplementary spatial data gracefully
+                historicPolygons = await fetchGeoJSON(DATA_PATH + 'historic.geojson');
+                deedRestrictionPolygons = await fetchGeoJSON(DATA_PATH + 'deed_restrictions.geojson');
+                transitPolygons = await fetchGeoJSON(DATA_PATH + 'transit_corridors.geojson');
 
-                // 2. Fetch Core Parcel Data
-                const response = await fetch('./parcels.geojson');
-                if (!response.ok) throw new Error("parcels.geojson failed to load with status " + response.status);
+                // 2. Load Representative Districts Boundaries
+                try {
+                    const repRes = await fetch(DATA_PATH + 'RepresentativeDistricts.geojson');
+                    if (repRes.ok) {
+                        const repData = await repRes.json();
+                        L.geoJSON(repData, {
+                            style: { color: '#0f172a', weight: 2, fillOpacity: 0, interactive: false, dashArray: '5, 5' }
+                        }).addTo(map);
+                    }
+                } catch(e) { console.warn("Representative districts boundary map missing."); }
+
+                // 3. Load all 8 Parcel Districts AND all 8 Footprint files
+                for (let i = 1; i <= 8; i++) {
+                    // A. Fetch Parcels
+                    try {
+                        const parcelRes = await fetch(`${DATA_PATH}Ready_Parcels_D${i}.geojson`);
+                        if (parcelRes.ok) {
+                            const parcelData = await parcelRes.json();
+                            // Tag every parcel with its source district so we can filter later
+                            parcelData.features.forEach(f => {
+                                if (!f.properties) f.properties = {};
+                                f.properties._district = String(i);
+                            });
+                            rawData.features.push(...parcelData.features);
+                        }
+                    } catch(e) { console.warn(`Ready_Parcels_D${i}.geojson failed to load.`); }
+
+                    // B. Fetch Footprints (Optional mapping overlay)
+                    try {
+                        const fpRes = await fetch(`${DATA_PATH}footprints_d${i}.geojson`);
+                        if (fpRes.ok) {
+                            const fpData = await fpRes.json();
+                            L.geoJSON(fpData, {
+                                style: { fillColor: '#94a3b8', color: '#64748b', weight: 0.5, fillOpacity: 0.5, interactive: false }
+                            }).addTo(map);
+                        }
+                    } catch(e) { console.warn(`footprints_d${i}.geojson failed to load.`); }
+                }
+
+                if (rawData.features.length === 0) {
+                    throw new Error("No parcel data was found in the /data/ folder.");
+                }
                 
-                rawData = await response.json();
-                
-                // 3. Pre-process parcels with Turf.js safely
+                // 4. Pre-process stitched parcels with Turf.js safely
                 rawData.features.forEach(feature => {
-                    if (!feature.properties) feature.properties = {};
                     const p = feature.properties;
-                    
-                    // Sanitize potential null values to prevent ".includes is not a function" errors
                     p.property_tag = String(p.property_tag || "");
                     p.zoning = String(p.zoning || "");
                     p.transit_corridor = String(p.transit_corridor || "");
@@ -263,7 +315,6 @@
                         try { pt = turf.centroid(feature); } catch(err) {} 
                     }
 
-                    // A: Determine Historic Constraints (Dual Check)
                     p._inHistoric = (p.in_historic.toUpperCase() === 'Y' || p.in_historic.toUpperCase() === 'TRUE');
                     if (!p._inHistoric && pt) {
                         try {
@@ -274,7 +325,6 @@
                         } catch(e) {}
                     }
 
-                    // B: Determine Transit Corridors (Dual Check)
                     p._inTransit = (p.transit_corridor.toUpperCase() === 'Y' || p.transit_corridor.toUpperCase() === 'TRUE');
                     if (!p._inTransit && pt) {
                         try {
@@ -285,7 +335,6 @@
                         } catch(e) {}
                     }
                     
-                    // C: Determine Deed Restrictions 
                     p._hasDeedRestriction = false;
                     p._deedProps = {};
                     if (pt) {
@@ -302,7 +351,7 @@
                     }
                 });
 
-                // 4. Initial Rendering
+                // 5. Initial Rendering of stitched parcel layer
                 geojsonLayer = L.geoJSON(rawData, {
                     style: function() {
                         return { fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', weight: 0.5, opacity: 0.3 };
@@ -311,21 +360,21 @@
 
                 document.getElementById('loading-overlay').style.display = 'none';
 
-                // THE CRITICAL FIX: Run the simulation immediately so data populates without requiring a manual click
+                // Run the simulation immediately so data populates
                 runSimulation();
 
             } catch (error) {
                 console.error("Critical error loading data:", error);
                 document.getElementById('loading-overlay').innerHTML = `
                     <div style="text-align:center; max-width: 600px; padding: 20px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h2 style="color: #ef4444; margin-top: 0;">Data File Missing (404 Error)</h2>
-                        <p style="color: #334155; font-size: 16px;">The map cannot load because your web browser cannot find the required <b>.geojson</b> files.</p>
+                        <h2 style="color: #ef4444; margin-top: 0;">Data Missing in /data/ Folder</h2>
+                        <p style="color: #334155; font-size: 16px;">The simulator checked the <code>/data/</code> folder but could not find the required files.</p>
                         <div style="background: #f8fafc; padding: 15px; border-radius: 6px; text-align: left; margin: 20px 0; border: 1px solid #e2e8f0;">
                             <strong style="color: #0f172a;">How to fix this:</strong>
                             <ol style="color: #334155; margin-bottom: 0; line-height: 1.6;">
-                                <li>Ensure <code>parcels.geojson</code> is saved in the exact same folder as this <code>index.html</code> file.</li>
-                                <li>Ensure the file name is entirely lowercase (GitHub is case-sensitive).</li>
-                                <li>If you are using GitHub Pages, make sure you have committed and pushed the data files to the server.</li>
+                                <li>Ensure your GitHub repository has a folder named <code>data</code> at the exact same level as <code>index.html</code>.</li>
+                                <li>Ensure the parcel files are exactly named <code>Ready_Parcels_D1.geojson</code> through <code>Ready_Parcels_D8.geojson</code>.</li>
+                                <li>Make sure you have committed and pushed the files to GitHub.</li>
                             </ol>
                         </div>
                     </div>
@@ -339,18 +388,24 @@
             const currentScenario = document.getElementById('scenario').value;
             const absorptionRate = parseFloat(document.getElementById('absorption').value) / 100;
             const applyDeedRestrictions = document.getElementById('applyDeedRestrictions').value === 'true';
+            const targetDistrict = document.getElementById('districtFilter').value;
 
             let totalNetUnits = 0;
             let totalNetJobs = 0;
 
-            // Single unified eachLayer block
             geojsonLayer.eachLayer(function(layer) {
                 const props = layer.feature.properties;
                 
-                // Reset calculations 
                 props._calcUnits = 0;
                 props._calcJobs = 0;
                 props._isVisible = true;
+
+                // --- DISTRICT FILTER ---
+                if (targetDistrict !== 'all' && props._district !== targetDistrict) {
+                    props._isVisible = false;
+                    layer.setStyle({ opacity: 0, fillOpacity: 0 });
+                    return; // Skip calculation for hidden districts
+                }
 
                 // --- HARD CONSTRAINT: Historic Districts ---
                 if (props._inHistoric) {
@@ -360,7 +415,6 @@
                 }
 
                 try {
-                    // Number sanitation
                     const existingUnits = parseInt(props.existing_units, 10) || 0;
                     const lotSqft = parseFloat(props.lot_sqft) || 1; 
                     const bldgSqft = parseFloat(props.building_sqft) || 0;
@@ -368,12 +422,10 @@
                     let grossNewUnits = 0;
                     let grossNewJobs = 0;
 
-                    // --- FILTER: Vacant or Underutilized ---
                     const isVacant = ["A7", "A8", "C1", "C10"].includes(props.property_tag.toUpperCase());
                     const bldgRatio = bldgSqft / lotSqft;
                     const meetsUnderutilized = isVacant || (bldgRatio < 0.15);
 
-                    // --- SCENARIO CALCULATION LOGIC ---
                     if (currentScenario === 'commercial_midrise' && meetsUnderutilized) {
                         const footprint = lotSqft * 0.5;
                         grossNewUnits = Math.floor((footprint * 4) / 850);
@@ -391,25 +443,21 @@
                         grossNewJobs = Math.floor(lotSqft / 500); 
                     }
 
-                    // --- MARKET ABSORPTION & NET YIELD ---
                     let likelyUnits = Math.round(grossNewUnits * absorptionRate);
                     let likelyJobs = Math.round(grossNewJobs * absorptionRate);
 
                     props._calcUnits = Math.max(0, likelyUnits - existingUnits);
                     props._calcJobs = likelyJobs;
 
-                    // --- DEED RESTRICTION / COVENANTS LOGIC ---
                     if (applyDeedRestrictions && props._hasDeedRestriction && currentScenario !== 'none') {
                         const covProps = props._deedProps;
                         const allowMf = String(covProps.allowMf || 'TRUE').toUpperCase();
                         const sfOnly = String(covProps.sfOnly || 'FALSE').toUpperCase();
 
-                        // Wipe out unit gains if multi-family is forbidden
                         if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
                             props._calcUnits = 0; 
                         }
 
-                        // Apply hard max_units caps if the deed restriction defined them
                         if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== '') {
                             let maxCap = parseInt(covProps.max_units, 10);
                             if (!isNaN(maxCap) && props._calcUnits > maxCap) {
@@ -418,13 +466,10 @@
                         }
                     }
 
-                    // Tally dashboard totals
                     totalNetUnits += props._calcUnits;
                     totalNetJobs += props._calcJobs;
 
-                } catch(err) {
-                    console.error("Calculation error on parcel:", err);
-                }
+                } catch(err) { }
 
                 // --- RENDERING LOGIC ---
                 try {
@@ -448,12 +493,10 @@
                 } catch (err) {}
             }); 
 
-            // 5. UPDATE DASHBOARD UI
             document.getElementById('total-units').innerText = totalNetUnits.toLocaleString();
             document.getElementById('total-jobs').innerText = totalNetJobs.toLocaleString();
         }
 
-        // Fire load event automatically
         window.onload = loadData;
     </script>
 </body>

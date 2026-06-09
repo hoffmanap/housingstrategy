@@ -124,7 +124,7 @@
 <body>
 
     <div id="loading-overlay">
-        <div id="loading-text">Loading Citywide Data & Buffering Transit Polylines...</div>
+        <div id="loading-text">Loading Citywide Data & Generating Map...</div>
     </div>
 
     <div id="target-banner">
@@ -163,7 +163,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" id="transitOnly"> Apply to Transit Corridors Only
             <span class="info-icon">i</span>
-            <div class="tooltip">Restricts all policy math to parcels located within a 1/2 mile buffer of designated transit polylines.</div>
+            <div class="tooltip">Restricts all policy math to parcels located within a 1/2 mile distance of designated transit corridors.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" id="protectHistoric" checked> Protect Historic Districts
@@ -285,7 +285,7 @@
         let geojsonLayer = null;
         let historicPolygons = [];
         let deedRestrictionPolygons = [];
-        let bufferedTransitPolygons = [];
+        let transitPolygons = [];
         
         const DATA_PATH = 'data/';
 
@@ -303,20 +303,10 @@
 
         async function loadData() {
             try {
+                // Fetch the boundaries normally
                 historicPolygons = await fetchGeoJSON(DATA_PATH + 'historic.geojson');
                 deedRestrictionPolygons = await fetchGeoJSON(DATA_PATH + 'covenants.geojson');
-                
-                // Transit Polyline Fix: Buffer the lines by 0.5 miles so Point-in-Polygon works
-                const rawTransit = await fetchGeoJSON(DATA_PATH + 'transit_corridors.geojson');
-                rawTransit.forEach(f => {
-                    try {
-                        if (f.geometry.type.includes('Line')) {
-                            bufferedTransitPolygons.push(turf.buffer(f, 0.5, {units: 'miles'}));
-                        } else {
-                            bufferedTransitPolygons.push(f);
-                        }
-                    } catch(e) {}
-                });
+                transitPolygons = await fetchGeoJSON(DATA_PATH + 'transit_corridors.geojson');
 
                 // Render Representative Districts
                 try {
@@ -371,7 +361,11 @@
 
                 if (rawData.features.length === 0) throw new Error("No parcels loaded.");
 
-                // Spatial tagging
+                // YIELD TO MAIN THREAD: Gives the browser a split second to update text so it doesn't freeze
+                document.getElementById('loading-text').innerText = "Running Spatial Analysis (This may take a moment)...";
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // Spatial tagging with Distance Check (Replaces heavy buffer)
                 rawData.features.forEach(feature => {
                     const p = feature.properties;
                     let pt = null;
@@ -382,11 +376,21 @@
                             p._inHistoric = historicPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
                         }
 
-                        // Transit check against the new 1/2 mile buffer
+                        // Transit Check utilizing Distance rather than drawing heavy buffer shapes
                         p._inTransit = (String(p.transit_corridor).toUpperCase() === 'Y' || String(p.transit_corridor).toUpperCase() === 'TRUE');
-                        if (!p._inTransit && bufferedTransitPolygons.length > 0) {
+                        if (!p._inTransit && transitPolygons.length > 0) {
                             pt = pt || turf.centroid(feature);
-                            p._inTransit = bufferedTransitPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
+                            p._inTransit = transitPolygons.some(geom => {
+                                try {
+                                    if (geom.geometry.type.includes('Polygon')) {
+                                        return turf.booleanPointInPolygon(pt, geom);
+                                    } else if (geom.geometry.type.includes('Line')) {
+                                        // 0.5 Miles Distance Math
+                                        return turf.pointToLineDistance(pt, geom, {units: 'miles'}) <= 0.5;
+                                    }
+                                } catch(e){}
+                                return false;
+                            });
                         }
                         
                         p._hasDeedRestriction = false;
@@ -437,7 +441,7 @@
             return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9, weight: 0.5 };
         }
 
-        // ENGINE: Bulletproof Calculations
+        // ENGINE: Calculations
         function runSimulation() {
             if (!geojsonLayer) return;
 
@@ -492,7 +496,6 @@
                         let maxNetUnits = 0;
                         let maxNetJobs = 0;
 
-                        // Calculate Max Net Yield directly to solve the ADU/Lot Split Bug
                         activePolicies.forEach(policy => {
                             let net_u = 0, net_j = 0;
                             
@@ -525,27 +528,23 @@
                             if (net_j > maxNetJobs) maxNetJobs = net_j;
                         });
 
-                        // The Parking Minimums Fix: A Realistic Modifer
                         if (hasParkingBoost) {
                             if (activePolicies.length === 1 && meetsUnderutilized) {
-                                maxNetUnits = Math.max(maxNetUnits, Math.floor(lotSqft / 5000)); // Gentle +1 infill if checked alone
+                                maxNetUnits = Math.max(maxNetUnits, Math.floor(lotSqft / 5000));
                             } else {
-                                maxNetUnits = Math.floor(maxNetUnits * 1.20); // 20% boost to other policies
+                                maxNetUnits = Math.floor(maxNetUnits * 1.20); 
                             }
                         }
 
-                        // Base Scenario Application
                         if (baseScenario === 'residential') maxNetJobs = 0;
                         if (baseScenario === 'commercial') maxNetUnits = 0;
                         if (baseScenario === 'mixed' && maxNetUnits > 4 && maxNetJobs === 0) {
-                            maxNetJobs = Math.floor(lotSqft * 0.2 / 300); // Forces commercial footprint if heavily residential
+                            maxNetJobs = Math.floor(lotSqft * 0.2 / 300); 
                         }
 
-                        // Apply Absorption to the NET yield
                         finalUnits = Math.round(maxNetUnits * absorptionRate);
                         finalJobs = Math.round(maxNetJobs * absorptionRate);
 
-                        // Deed Restriction Hard-Stops
                         if (applyCovenants && props._hasDeedRestriction) {
                             let d = props._deedProps;
                             let sfOnly = String(d.sfOnly || d.sf_only || '').toUpperCase();
@@ -555,9 +554,9 @@
                             if (commOnly === 'Y' || commOnly === 'TRUE' || commOnly === 'YES') {
                                 finalUnits = 0;
                             } else if (sfOnly === 'Y' || sfOnly === 'TRUE' || sfOnly === 'YES') {
-                                if (finalUnits > 1) finalUnits = 0; // Strictly protects SF character (allows ADU)
+                                if (finalUnits > 1) finalUnits = 0; 
                             } else if (allowMf === 'FALSE' || allowMf === 'N' || allowMf === 'NO') {
-                                if (finalUnits > 2) finalUnits = 0; // Bans apartment complexes
+                                if (finalUnits > 2) finalUnits = 0; 
                             }
 
                             let maxCap = parseInt(d.max_units || d.MaxUnits || d.units, 10);
@@ -565,7 +564,6 @@
                         }
                     }
 
-                    // Tally Output
                     if (finalUnits > 0 || finalJobs > 0) {
                         totalNetUnits += finalUnits;
                         totalNetJobs += finalJobs;
@@ -578,7 +576,6 @@
                     layer.setStyle(getBivariateStyle(finalUnits, finalJobs));
                 }); 
 
-                // UPDATE DASHBOARD UI
                 document.getElementById('banner-rem-units').innerText = Math.max(0, 35000 - totalNetUnits).toLocaleString();
                 document.getElementById('banner-rem-jobs').innerText = Math.max(0, 55000 - totalNetJobs).toLocaleString();
                 

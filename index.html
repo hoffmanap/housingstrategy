@@ -23,7 +23,8 @@
             --text-main: #0f172a;
             --text-muted: #64748b;
             --border: #e2e8f0;
-            --success: #10b981;
+            --housing: #2563eb;
+            --jobs: #d97706;
         }
         body { 
             font-family: 'Inter', sans-serif; 
@@ -34,127 +35,107 @@
             height: 100vh; 
             overflow: hidden;
         }
+        
+        /* Banner Styles */
+        #target-banner {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 1000;
+            text-align: center;
+            border: 1px solid var(--border);
+            width: max-content;
+        }
+        .banner-title { font-weight: 700; font-size: 16px; color: var(--text-main); margin-bottom: 5px; }
+        .banner-stats { display: flex; gap: 30px; justify-content: center; font-size: 14px; color: var(--text-muted); }
+        .stat-group span { font-weight: 700; font-size: 18px; }
+        .housing-text { color: var(--housing); }
+        .jobs-text { color: var(--jobs); }
+
+        /* Sidebar Styles */
         #sidebar { 
-            width: 350px; 
+            width: 380px; 
             background: var(--surface); 
             border-right: 1px solid var(--border); 
             padding: 20px; 
             overflow-y: auto; 
             box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
-            z-index: 1000; 
+            z-index: 1001; 
+            display: flex;
+            flex-direction: column;
         }
-        #map { 
-            flex-grow: 1; 
-            height: 100vh; 
-        }
-        .control-group { margin-bottom: 20px; position: relative; }
-        label { 
-            display: flex; 
-            align-items: center; 
-            font-weight: 600; 
-            margin-bottom: 8px; 
-            color: var(--text-main); 
-            font-size: 14px; 
-        }
+        #sidebar h2 { margin-top: 0; font-size: 20px; }
+        .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; margin: 25px 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 5px;}
+        
+        .control-group { margin-bottom: 15px; position: relative; }
+        .checkbox-group { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 500; color: var(--text-main); cursor: pointer;}
+        .checkbox-group input { margin-right: 10px; width: 16px; height: 16px; cursor: pointer; }
+        
+        label { display: flex; align-items: center; font-weight: 600; margin-bottom: 6px; color: var(--text-main); font-size: 13px; }
         select, input[type="range"] { 
-            width: 100%; 
-            padding: 8px; 
-            border: 1px solid var(--border); 
-            border-radius: 6px; 
-            font-size: 14px; 
-            box-sizing: border-box;
+            width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; box-sizing: border-box; background: var(--bg-color);
         }
-        button { 
-            background: var(--primary); 
-            color: white; 
-            border: none; 
-            padding: 12px 15px; 
-            width: 100%; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: background 0.2s; 
-            margin-bottom: 20px;
-        }
-        button:hover { background: var(--primary-hover); }
         
-        /* Tooltip Styles */
-        .info-icon { 
-            display: inline-block; 
-            width: 16px; 
-            height: 16px; 
-            background: var(--text-muted); 
-            color: white; 
-            border-radius: 50%; 
-            text-align: center; 
-            font-size: 12px; 
-            line-height: 16px; 
-            cursor: help; 
-            margin-left: 8px; 
+        button.run-btn { 
+            background: var(--primary); color: white; border: none; padding: 12px 15px; width: 100%; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 15px; font-size: 15px;
         }
-        .tooltip { 
-            display: none; 
-            position: absolute; 
-            top: 25px; 
-            left: 0;
-            background: #334155; 
-            color: white; 
-            padding: 8px 12px; 
-            border-radius: 6px; 
-            font-size: 12px; 
-            font-weight: 400;
-            max-width: 250px; 
-            z-index: 2000; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .info-icon:hover + .tooltip { display: block; }
+        button.run-btn:hover { background: var(--primary-hover); }
+
+        /* Table Styles */
+        table.district-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+        .district-table th, .district-table td { padding: 8px; text-align: right; border-bottom: 1px solid var(--border); }
+        .district-table th { text-align: right; color: var(--text-muted); font-weight: 600; background: var(--bg-color); }
+        .district-table th:first-child, .district-table td:first-child { text-align: left; font-weight: 600; }
+        .district-table tr.total-row { font-weight: 700; font-size: 13px; background: #f1f5f9; }
+
+        #map { flex-grow: 1; height: 100vh; position: relative; }
         
-        #dashboard { 
-            padding: 15px; 
-            background: var(--bg-color); 
-            border: 1px solid var(--border); 
-            border-radius: 6px; 
+        /* Map Legend */
+        .map-legend {
+            position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; font-size: 12px; border: 1px solid var(--border);
         }
-        #dashboard h3 { margin-top: 0; font-size: 16px; color: var(--text-main); margin-bottom: 15px;}
-        .stat-box { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 10px; 
-            padding-bottom: 10px; 
-            border-bottom: 1px solid var(--border); 
-            font-size: 14px;
-        }
-        .stat-box:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-        .stat-value { font-weight: 700; color: var(--primary); font-size: 16px;}
-        
+        .legend-title { font-weight: 700; margin-bottom: 10px; color: var(--text-main); text-align: center;}
+        .legend-row { display: flex; align-items: center; margin-bottom: 6px; }
+        .color-box { width: 16px; height: 16px; margin-right: 8px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);}
+
         /* Loading Overlay */
         #loading-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.95);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--primary);
-            flex-direction: column;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: 600; color: var(--primary); flex-direction: column;
         }
     </style>
 </head>
 <body>
 
     <div id="loading-overlay">
-        <div id="loading-text">Loading Map Data (This may take a moment for all 8 Districts)...</div>
+        <div id="loading-text">Loading Citywide Data (Optimizing Layers)...</div>
+    </div>
+
+    <div id="target-banner">
+        <div class="banner-title">El Paso Citywide Targets</div>
+        <div class="banner-stats">
+            <div class="stat-group">Goal: <span class="housing-text">35,000</span> Units</div>
+            <div class="stat-group">Goal: <span class="jobs-text">55,000</span> Jobs</div>
+        </div>
+        <div style="border-top: 1px solid #e2e8f0; margin: 8px 0;"></div>
+        <div class="banner-stats" style="font-size: 13px;">
+            <div class="stat-group">Remaining: <span id="banner-rem-units" style="color: #64748b;">35,000</span></div>
+            <div class="stat-group">Remaining: <span id="banner-rem-jobs" style="color: #64748b;">55,000</span></div>
+        </div>
     </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
 
+        <div class="section-title">Filters & Constraints</div>
+        
         <div class="control-group">
             <label>Representative District</label>
-            <select id="districtFilter" onchange="runSimulation()">
+            <select id="districtFilter">
                 <option value="all">Citywide (All Districts)</option>
                 <option value="1">District 1</option>
                 <option value="2">District 2</option>
@@ -166,65 +147,93 @@
                 <option value="8">District 8</option>
             </select>
         </div>
+
+        <label class="checkbox-group">
+            <input type="checkbox" id="transitOnly"> Apply to Transit Corridors Only
+        </label>
+        <label class="checkbox-group">
+            <input type="checkbox" id="protectHistoric" checked> Protect Historic Districts
+        </label>
+        <label class="checkbox-group" style="margin-top: -5px;">
+            <input type="checkbox" id="applyDeedRestrictions"> Enforce Deed Restrictions (Covenants)
+        </label>
         
+        <div class="section-title">Policy Interventions</div>
+
         <div class="control-group">
-            <label>Zoning Intervention 
-                <span class="info-icon">i</span>
-                <div class="tooltip">Select the proposed zoning policy to apply across eligible city parcels.</div>
-            </label>
-            <select id="scenario" onchange="runSimulation()">
+            <label>Zoning Reform</label>
+            <select id="scenario">
                 <option value="none">No Intervention</option>
-                <option value="residential_conversions">Residential Conversions</option>
-                <option value="commercial_midrise">Commercial Midrise (5-Story)</option>
-                <option value="transit_oriented">Transit-Oriented Development</option>
+                <option value="adu">Allow ADUs</option>
+                <option value="lot_splits">Allow Lot Splits</option>
+                <option value="mansion_conversions">Mansion Conversions</option>
+                <option value="missing_middle_4_8">Missing Middle (4-8 Units)</option>
+                <option value="missing_middle_9_16">Missing Middle (9-16 Units)</option>
+                <option value="midrise">Allow Midrise Development</option>
+                <option value="no_parking">Eliminate Parking Minimums</option>
             </select>
         </div>
 
-        <div class="control-group">
-            <label>Market Absorption Rate (%) 
-                <span class="info-icon">i</span>
-                <div class="tooltip">The probability (5-25%) that a landowner will realistically develop their property over the planning horizon.</div>
-            </label>
-            <input type="range" id="absorption" min="5" max="25" value="10" step="1" onchange="runSimulation()">
-            <div style="text-align: right; font-size: 14px; font-weight: 600; margin-top: 5px;" id="absorption-val">10%</div>
-        </div>
-
-        <div class="control-group">
-            <label>Enforce Deed Restrictions 
-                <span class="info-icon">i</span>
-                <div class="tooltip">Toggle on to respect active HOAs/covenants that prohibit multi-family homes or restrict density, overriding zoning.</div>
-            </label>
-            <select id="applyDeedRestrictions" onchange="runSimulation()">
-                <option value="false">No</option>
-                <option value="true">Yes</option>
+        <div class="control-group" id="midrise-floors-container" style="display: none;">
+            <label>Number of Floors (Midrise)</label>
+            <select id="midrise_floors">
+                <option value="2">2 Floors</option>
+                <option value="3">3 Floors</option>
+                <option value="4">4 Floors</option>
+                <option value="5" selected>5 Floors</option>
             </select>
         </div>
 
-        <button onclick="runSimulation()">Run Simulation</button>
+        <div class="control-group" style="margin-top: 15px;">
+            <label>Market Absorption Rate: <span id="absorption-val" style="margin-left: 5px; color: var(--primary);">10%</span></label>
+            <input type="range" id="absorption" min="5" max="25" value="10" step="1">
+            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">Realistic probability of development</div>
+        </div>
 
-        <div id="dashboard">
-            <h3>Estimated Impact</h3>
-            <div class="stat-box">
-                <span>Net-New Housing Units:</span>
-                <span id="total-units" class="stat-value">0</span>
-            </div>
-            <div class="stat-box">
-                <span>Net-New Jobs:</span>
-                <span id="total-jobs" class="stat-value">0</span>
-            </div>
+        <button class="run-btn" onclick="runSimulation()">Run Simulation</button>
+
+        <div class="section-title" style="margin-top: 30px;">Impact By District</div>
+        <table class="district-table">
+            <thead>
+                <tr>
+                    <th>District</th>
+                    <th>Net Units</th>
+                    <th>Net Jobs</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                </tbody>
+        </table>
+    </div>
+
+    <div id="map">
+        <div class="map-legend">
+            <div class="legend-title">Development Intensity</div>
+            <div class="legend-row"><div class="color-box" style="background: #1e3a8a;"></div> High Housing Yield</div>
+            <div class="legend-row"><div class="color-box" style="background: #3b82f6;"></div> Medium Housing</div>
+            <div class="legend-row"><div class="color-box" style="background: #60a5fa;"></div> Low Housing</div>
+            <div style="height: 5px;"></div>
+            <div class="legend-row"><div class="color-box" style="background: #78350f;"></div> High Job Yield</div>
+            <div class="legend-row"><div class="color-box" style="background: #d97706;"></div> Medium Jobs</div>
+            <div class="legend-row"><div class="color-box" style="background: #fbbf24;"></div> Low Jobs</div>
+            <div style="height: 5px;"></div>
+            <div class="legend-row"><div class="color-box" style="background: #cbd5e1;"></div> No Net Change / Existing</div>
         </div>
     </div>
 
-    <div id="map"></div>
-
     <script>
-        // Real-time UI Slider update
+        // UI Slider logic
         document.getElementById('absorption').addEventListener('input', function(e) {
             document.getElementById('absorption-val').innerText = e.target.value + '%';
         });
 
-        // Initialize Map
-        const map = L.map('map').setView([31.7619, -106.4850], 11);
+        // Show/Hide Midrise Floors based on scenario
+        document.getElementById('scenario').addEventListener('change', function(e) {
+            document.getElementById('midrise-floors-container').style.display = (e.target.value === 'midrise') ? 'block' : 'none';
+        });
+
+        // Initialize Map with Canvas Renderer for extremely fast rendering
+        const map = L.map('map', { preferCanvas: true }).setView([31.7619, -106.4850], 11);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
@@ -235,10 +244,9 @@
         let transitPolygons = [];
         let rawData = { type: "FeatureCollection", features: [] };
         
-        // Define base path to data folder
         const DATA_PATH = './data/';
 
-        // Bulletproof JSON Fetcher for helper files
+        // Graceful Fetcher
         async function fetchGeoJSON(url) {
             try {
                 const res = await fetch(url);
@@ -246,112 +254,108 @@
                     const data = await res.json();
                     if (data && data.features) return data.features;
                 }
-            } catch(e) {
-                console.warn(`File missing or invalid geometry inside ${url}`);
-            }
+            } catch(e) { console.warn(`Missing: ${url}`); }
             return [];
         }
 
         async function loadData() {
             try {
-                // 1. Fetch supplementary spatial data gracefully
+                // 1. Fetch Constraints
                 historicPolygons = await fetchGeoJSON(DATA_PATH + 'historic.geojson');
-                deedRestrictionPolygons = await fetchGeoJSON(DATA_PATH + 'deed_restrictions.geojson');
+                deedRestrictionPolygons = await fetchGeoJSON(DATA_PATH + 'covenants.geojson');
                 transitPolygons = await fetchGeoJSON(DATA_PATH + 'transit_corridors.geojson');
 
-                // 2. Load Representative Districts Boundaries
+                // 2. Fetch Rep Districts (Muted Gray Style)
                 try {
                     const repRes = await fetch(DATA_PATH + 'RepresentativeDistricts.geojson');
                     if (repRes.ok) {
                         const repData = await repRes.json();
                         L.geoJSON(repData, {
-                            style: { color: '#0f172a', weight: 2, fillOpacity: 0, interactive: false, dashArray: '5, 5' }
+                            style: { color: '#94a3b8', weight: 1.5, fillOpacity: 0, interactive: false, dashArray: '4, 4' }
                         }).addTo(map);
                     }
-                } catch(e) { console.warn("Representative districts boundary map missing."); }
+                } catch(e) {}
 
-                // 3. Load all 8 Parcel Districts AND all 8 Footprint files
+                // 3. PARALLEL FETCHING: Drastically reduces load time
+                let parcelPromises = [];
+                let footprintPromises = [];
                 for (let i = 1; i <= 8; i++) {
-                    // A. Fetch Parcels
-                    try {
-                        const parcelRes = await fetch(`${DATA_PATH}Ready_Parcels_D${i}.geojson`);
-                        if (parcelRes.ok) {
-                            const parcelData = await parcelRes.json();
-                            // Tag every parcel with its source district so we can filter later
-                            parcelData.features.forEach(f => {
-                                if (!f.properties) f.properties = {};
-                                f.properties._district = String(i);
-                            });
-                            rawData.features.push(...parcelData.features);
-                        }
-                    } catch(e) { console.warn(`Ready_Parcels_D${i}.geojson failed to load.`); }
-
-                    // B. Fetch Footprints (Optional mapping overlay)
-                    try {
-                        const fpRes = await fetch(`${DATA_PATH}footprints_d${i}.geojson`);
-                        if (fpRes.ok) {
-                            const fpData = await fpRes.json();
-                            L.geoJSON(fpData, {
-                                style: { fillColor: '#94a3b8', color: '#64748b', weight: 0.5, fillOpacity: 0.5, interactive: false }
-                            }).addTo(map);
-                        }
-                    } catch(e) { console.warn(`footprints_d${i}.geojson failed to load.`); }
+                    parcelPromises.push(
+                        fetch(`${DATA_PATH}Ready_Parcels_D${i}.geojson`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => { if(data) { data._d = i; return data; } return null; })
+                        .catch(() => null)
+                    );
+                    footprintPromises.push(
+                        fetch(`${DATA_PATH}footprints_d${i}.geojson`)
+                        .then(r => r.ok ? r.json() : null).catch(() => null)
+                    );
                 }
 
-                if (rawData.features.length === 0) {
-                    throw new Error("No parcel data was found in the /data/ folder.");
-                }
-                
-                // 4. Pre-process stitched parcels with Turf.js safely
+                const parcelResults = await Promise.all(parcelPromises);
+                const footprintResults = await Promise.all(footprintPromises);
+
+                // Process Parcels
+                parcelResults.forEach(res => {
+                    if (res && res.features) {
+                        res.features.forEach(f => {
+                            if (!f.properties) f.properties = {};
+                            f.properties._district = String(res._d);
+                            rawData.features.push(f);
+                        });
+                    }
+                });
+
+                // Render Footprints
+                footprintResults.forEach(res => {
+                    if (res && res.features) {
+                        L.geoJSON(res, {
+                            style: { fillColor: '#94a3b8', color: '#64748b', weight: 0.5, fillOpacity: 0.5, interactive: false }
+                        }).addTo(map);
+                    }
+                });
+
+                if (rawData.features.length === 0) throw new Error("No parcel data loaded.");
+
+                // 4. Pre-process parcels (Optimized)
                 rawData.features.forEach(feature => {
                     const p = feature.properties;
                     p.property_tag = String(p.property_tag || "");
-                    p.zoning = String(p.zoning || "");
-                    p.transit_corridor = String(p.transit_corridor || "");
-                    p.in_historic = String(p.in_historic || "");
-
-                    let pt;
-                    try { pt = turf.centerOfMass(feature); } catch(e) {
-                        try { pt = turf.centroid(feature); } catch(err) {} 
+                    
+                    let pt = null;
+                    
+                    // Historic Check (Fast Path first)
+                    p._inHistoric = (String(p.in_historic).toUpperCase() === 'Y');
+                    if (!p._inHistoric && historicPolygons.length > 0) {
+                        try { pt = pt || turf.centerOfMass(feature); } catch(e) {}
+                        if (pt) p._inHistoric = historicPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
                     }
 
-                    p._inHistoric = (p.in_historic.toUpperCase() === 'Y' || p.in_historic.toUpperCase() === 'TRUE');
-                    if (!p._inHistoric && pt) {
-                        try {
-                            p._inHistoric = historicPolygons.some(poly => {
-                                if (!poly.geometry || !poly.geometry.type.includes('Polygon')) return false;
-                                return turf.booleanPointInPolygon(pt, poly);
-                            });
-                        } catch(e) {}
-                    }
-
-                    p._inTransit = (p.transit_corridor.toUpperCase() === 'Y' || p.transit_corridor.toUpperCase() === 'TRUE');
-                    if (!p._inTransit && pt) {
-                        try {
-                            p._inTransit = transitPolygons.some(poly => {
-                                if (!poly.geometry || !poly.geometry.type.includes('Polygon')) return false;
-                                return turf.booleanPointInPolygon(pt, poly);
-                            });
-                        } catch(e) {}
+                    // Transit Check (Fast Path first)
+                    p._inTransit = (String(p.transit_corridor).toUpperCase() === 'Y');
+                    if (!p._inTransit && transitPolygons.length > 0) {
+                        try { pt = pt || turf.centerOfMass(feature); } catch(e) {}
+                        if (pt) p._inTransit = transitPolygons.some(poly => turf.booleanPointInPolygon(pt, poly));
                     }
                     
+                    // Covenants Check
                     p._hasDeedRestriction = false;
                     p._deedProps = {};
-                    if (pt) {
-                        try {
+                    if (deedRestrictionPolygons.length > 0) {
+                        try { pt = pt || turf.centerOfMass(feature); } catch(e) {}
+                        if (pt) {
                             for (let poly of deedRestrictionPolygons) {
-                                if (!poly.geometry || !poly.geometry.type.includes('Polygon')) continue;
                                 if (turf.booleanPointInPolygon(pt, poly)) {
                                     p._hasDeedRestriction = true;
                                     p._deedProps = poly.properties || {};
                                     break;
                                 }
                             }
-                        } catch(e) {}
+                        }
                     }
                 });
 
-                // 5. Initial Rendering of stitched parcel layer
+                // 5. Build Layer
                 geojsonLayer = L.geoJSON(rawData, {
                     style: function() {
                         return { fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', weight: 0.5, opacity: 0.3 };
@@ -360,141 +364,172 @@
 
                 document.getElementById('loading-overlay').style.display = 'none';
 
-                // Run the simulation immediately so data populates
+                // Initial Calc
                 runSimulation();
 
             } catch (error) {
-                console.error("Critical error loading data:", error);
-                document.getElementById('loading-overlay').innerHTML = `
-                    <div style="text-align:center; max-width: 600px; padding: 20px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h2 style="color: #ef4444; margin-top: 0;">Data Missing in /data/ Folder</h2>
-                        <p style="color: #334155; font-size: 16px;">The simulator checked the <code>/data/</code> folder but could not find the required files.</p>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 6px; text-align: left; margin: 20px 0; border: 1px solid #e2e8f0;">
-                            <strong style="color: #0f172a;">How to fix this:</strong>
-                            <ol style="color: #334155; margin-bottom: 0; line-height: 1.6;">
-                                <li>Ensure your GitHub repository has a folder named <code>data</code> at the exact same level as <code>index.html</code>.</li>
-                                <li>Ensure the parcel files are exactly named <code>Ready_Parcels_D1.geojson</code> through <code>Ready_Parcels_D8.geojson</code>.</li>
-                                <li>Make sure you have committed and pushed the files to GitHub.</li>
-                            </ol>
-                        </div>
-                    </div>
-                `;
+                console.error(error);
+                document.getElementById('loading-overlay').innerHTML = `<h2 style='color:red;'>Data missing in /data/ folder.</h2>`;
             }
+        }
+
+        // Bivariate Color Logic
+        function getBivariateStyle(u, j) {
+            if (u === 0 && j === 0) {
+                return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3 };
+            }
+            let total = u + j;
+            let fColor, sColor;
+
+            if (u > j) {
+                // Housing dominant
+                if (total > 30) { fColor = '#1e3a8a'; sColor = '#172554'; }
+                else if (total > 8) { fColor = '#2563eb'; sColor = '#1d4ed8'; }
+                else { fColor = '#60a5fa'; sColor = '#3b82f6'; }
+            } else {
+                // Jobs dominant
+                if (total > 30) { fColor = '#78350f'; sColor = '#451a03'; }
+                else if (total > 8) { fColor = '#d97706'; sColor = '#b45309'; }
+                else { fColor = '#fbbf24'; sColor = '#f59e0b'; }
+            }
+            return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9 };
         }
 
         function runSimulation() {
             if (!geojsonLayer) return;
 
-            const currentScenario = document.getElementById('scenario').value;
+            // UI Parameters
+            const scenario = document.getElementById('scenario').value;
             const absorptionRate = parseFloat(document.getElementById('absorption').value) / 100;
-            const applyDeedRestrictions = document.getElementById('applyDeedRestrictions').value === 'true';
             const targetDistrict = document.getElementById('districtFilter').value;
+            
+            // Constraints
+            const applyTransitOnly = document.getElementById('transitOnly').checked;
+            const applyHistoricProtection = document.getElementById('protectHistoric').checked;
+            const applyCovenants = document.getElementById('applyDeedRestrictions').checked;
+            const midriseFloors = parseInt(document.getElementById('midrise_floors').value);
 
             let totalNetUnits = 0;
             let totalNetJobs = 0;
+            
+            // District Tally Object
+            let districtTotals = { '1':{u:0, j:0}, '2':{u:0, j:0}, '3':{u:0, j:0}, '4':{u:0, j:0}, '5':{u:0, j:0}, '6':{u:0, j:0}, '7':{u:0, j:0}, '8':{u:0, j:0} };
 
+            // Batch style updates for performance
             geojsonLayer.eachLayer(function(layer) {
                 const props = layer.feature.properties;
-                
                 props._calcUnits = 0;
                 props._calcJobs = 0;
-                props._isVisible = true;
 
-                // --- DISTRICT FILTER ---
+                // Visibility & Hard Filters
                 if (targetDistrict !== 'all' && props._district !== targetDistrict) {
-                    props._isVisible = false;
-                    layer.setStyle({ opacity: 0, fillOpacity: 0 });
-                    return; // Skip calculation for hidden districts
+                    layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; 
                 }
-
-                // --- HARD CONSTRAINT: Historic Districts ---
-                if (props._inHistoric) {
-                    props._isVisible = false;
-                    layer.setStyle({ opacity: 0, fillOpacity: 0 }); 
-                    return; 
+                if (applyHistoricProtection && props._inHistoric) {
+                    layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; 
+                }
+                if (applyTransitOnly && !props._inTransit) {
+                    layer.setStyle({ opacity: 0, fillOpacity: 0 }); return; 
                 }
 
                 try {
                     const existingUnits = parseInt(props.existing_units, 10) || 0;
                     const lotSqft = parseFloat(props.lot_sqft) || 1; 
                     const bldgSqft = parseFloat(props.building_sqft) || 0;
-
-                    let grossNewUnits = 0;
-                    let grossNewJobs = 0;
-
+                    
                     const isVacant = ["A7", "A8", "C1", "C10"].includes(props.property_tag.toUpperCase());
                     const bldgRatio = bldgSqft / lotSqft;
                     const meetsUnderutilized = isVacant || (bldgRatio < 0.15);
 
-                    if (currentScenario === 'commercial_midrise' && meetsUnderutilized) {
-                        const footprint = lotSqft * 0.5;
-                        grossNewUnits = Math.floor((footprint * 4) / 850);
-                        grossNewJobs = Math.floor(footprint / 300);
-                        
-                    } else if (currentScenario === 'residential_conversions' && meetsUnderutilized) {
-                        if (lotSqft > 6000) {
-                            grossNewUnits = 16;
-                        } else if (lotSqft > 5000) {
-                            grossNewUnits = 8;
-                        }
+                    let grossNewUnits = 0;
+                    let grossNewJobs = 0;
 
-                    } else if (currentScenario === 'transit_oriented' && meetsUnderutilized && props._inTransit) {
-                        grossNewUnits = Math.floor((lotSqft / 43560) * 65); 
+                    // --- SCENARIO MATH ---
+                    if (scenario === 'adu' && existingUnits > 0 && lotSqft > 3000) {
+                        grossNewUnits = existingUnits + 1;
+                    } 
+                    else if (scenario === 'lot_splits' && lotSqft > 7000 && meetsUnderutilized) {
+                        grossNewUnits = 2;
+                    }
+                    else if (scenario === 'mansion_conversions' && meetsUnderutilized) {
+                        grossNewUnits = (lotSqft > 6000) ? 8 : (lotSqft > 4000 ? 4 : 0);
+                    }
+                    else if (scenario === 'missing_middle_4_8' && meetsUnderutilized) {
+                        grossNewUnits = (lotSqft > 7000) ? 8 : (lotSqft > 4000 ? 4 : 0);
+                    }
+                    else if (scenario === 'missing_middle_9_16' && meetsUnderutilized) {
+                        grossNewUnits = (lotSqft > 10000) ? 16 : (lotSqft > 6000 ? 9 : 0);
+                    }
+                    else if (scenario === 'midrise' && meetsUnderutilized) {
+                        const footprint = lotSqft * 0.5;
+                        grossNewUnits = Math.floor((footprint * (midriseFloors - 1)) / 850); // 1 floor for jobs
+                        grossNewJobs = Math.floor(footprint / 300);
+                    }
+                    else if (scenario === 'no_parking' && meetsUnderutilized) {
+                        // Boosted density allowance
+                        grossNewUnits = Math.floor(lotSqft / 1000); 
                         grossNewJobs = Math.floor(lotSqft / 500); 
                     }
 
+                    // --- ABSORPTION & YIELD ---
                     let likelyUnits = Math.round(grossNewUnits * absorptionRate);
                     let likelyJobs = Math.round(grossNewJobs * absorptionRate);
 
                     props._calcUnits = Math.max(0, likelyUnits - existingUnits);
                     props._calcJobs = likelyJobs;
 
-                    if (applyDeedRestrictions && props._hasDeedRestriction && currentScenario !== 'none') {
-                        const covProps = props._deedProps;
-                        const allowMf = String(covProps.allowMf || 'TRUE').toUpperCase();
-                        const sfOnly = String(covProps.sfOnly || 'FALSE').toUpperCase();
-
-                        if (allowMf === 'FALSE' || allowMf === '0' || allowMf === 'N' || sfOnly === 'Y' || sfOnly === 'YES' || sfOnly === 'TRUE') {
-                            props._calcUnits = 0; 
-                        }
-
-                        if (covProps.max_units !== null && covProps.max_units !== undefined && String(covProps.max_units).trim() !== '') {
-                            let maxCap = parseInt(covProps.max_units, 10);
-                            if (!isNaN(maxCap) && props._calcUnits > maxCap) {
-                                props._calcUnits = maxCap;
-                            }
+                    // --- COVENANTS RESTRAINT ---
+                    if (applyCovenants && props._hasDeedRestriction && scenario !== 'none') {
+                        const allowMf = String(props._deedProps.allowMf || 'TRUE').toUpperCase();
+                        if (allowMf === 'FALSE' || allowMf === 'N') props._calcUnits = 0; 
+                        
+                        if (props._deedProps.max_units) {
+                            let maxCap = parseInt(props._deedProps.max_units, 10);
+                            if (!isNaN(maxCap) && props._calcUnits > maxCap) props._calcUnits = maxCap;
                         }
                     }
 
-                    totalNetUnits += props._calcUnits;
-                    totalNetJobs += props._calcJobs;
-
-                } catch(err) { }
-
-                // --- RENDERING LOGIC ---
-                try {
-                    const u = props._calcUnits;
-                    const j = props._calcJobs;
-                    
-                    if (u === 0 && j === 0) {
-                        layer.setStyle({
-                            fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', opacity: 0.3, weight: 0.5 
-                        });
-                    } else {
-                        layer.setStyle({ 
-                            fillColor: (j > u) ? "#f59e0b" : (u > j ? "#3b82f6" : "#cbd5e1"), 
-                            fillOpacity: 0.65, 
-                            stroke: true, 
-                            color: (j > u) ? "#d97706" : (u > j ? "#2563eb" : "#94a3b8"),
-                            opacity: 0.8, 
-                            weight: 0.5 
-                        });
+                    // Append to Totals
+                    if (props._calcUnits > 0 || props._calcJobs > 0) {
+                        totalNetUnits += props._calcUnits;
+                        totalNetJobs += props._calcJobs;
+                        if (districtTotals[props._district]) {
+                            districtTotals[props._district].u += props._calcUnits;
+                            districtTotals[props._district].j += props._calcJobs;
+                        }
                     }
-                } catch (err) {}
+
+                } catch(err) {}
+
+                // Style Update
+                const styleObj = getBivariateStyle(props._calcUnits, props._calcJobs);
+                styleObj.weight = 0.5;
+                layer.setStyle(styleObj);
             }); 
 
-            document.getElementById('total-units').innerText = totalNetUnits.toLocaleString();
-            document.getElementById('total-jobs').innerText = totalNetJobs.toLocaleString();
+            // Update Banner
+            document.getElementById('banner-rem-units').innerText = Math.max(0, 35000 - totalNetUnits).toLocaleString();
+            document.getElementById('banner-rem-jobs').innerText = Math.max(0, 55000 - totalNetJobs).toLocaleString();
+            
+            // Highlight text if goals met
+            document.getElementById('banner-rem-units').style.color = (totalNetUnits >= 35000) ? 'var(--success)' : '#64748b';
+            document.getElementById('banner-rem-jobs').style.color = (totalNetJobs >= 55000) ? 'var(--success)' : '#64748b';
+
+            // Update District Table
+            let tableHTML = "";
+            for (let i = 1; i <= 8; i++) {
+                tableHTML += `<tr>
+                    <td>District ${i}</td>
+                    <td style="color:var(--housing);">${districtTotals[i].u.toLocaleString()}</td>
+                    <td style="color:var(--jobs);">${districtTotals[i].j.toLocaleString()}</td>
+                </tr>`;
+            }
+            tableHTML += `<tr class="total-row">
+                <td>TOTAL</td>
+                <td style="color:var(--housing);">${totalNetUnits.toLocaleString()}</td>
+                <td style="color:var(--jobs);">${totalNetJobs.toLocaleString()}</td>
+            </tr>`;
+            document.getElementById('table-body').innerHTML = tableHTML;
         }
 
         window.onload = loadData;

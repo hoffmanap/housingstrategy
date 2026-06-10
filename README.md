@@ -2,6 +2,7 @@
 
 An interactive parcel-level simulation tool for exploring how different land use policy interventions could contribute toward El Paso's housing and job creation targets. The tool allows planners, policymakers, and the public to combine base development scenarios with specific policy levers, apply geographic constraints, and visualize cumulative potential across all eight City Council districts.
 
+View the Simulator here: https://hoffmanap.github.io/housingstrategy/
 ---
 
 ## How the Model Works

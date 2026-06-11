@@ -484,37 +484,25 @@
                 `;
             }
         }
+this is what i have--i did a bivariate color scheme. can we update your script so it's trivariate?
 
-        // Trivariate Colors: Housing (Blues), Jobs (Oranges), Mixed-Use (Purples)
-        function getTrivariateStyle(u, j) {
-            // No capacity (Gray)
-            if (u < 0.5 && j < 0.5) return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
-    
-            let total = u + j;
-            let fColor, sColor;
-    
-            if (u >= 1 && j >= 1) { 
-                // 1. MIXED-USE (Yields both Units and Jobs) -> Purples
-                if (total > 20) { fColor = '#6b21a8'; sColor = '#581c87'; } // High Density
-                else if (total > 8) { fColor = '#9333ea'; sColor = '#7e22ce'; } // Medium Density
-                else { fColor = '#d8b4fe'; sColor = '#c084fc'; } // Low Density
+        // Bivariate Colors
+        function getBivariateStyle(u, j) {
+            if (u < 0.5 && j < 0.5) return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
+            let total = u + j;
+            let fColor, sColor;
+            if (u > j) { 
+                if (total > 20) { fColor = '#1e3a8a'; sColor = '#172554'; }
+                else if (total > 8) { fColor = '#2563eb'; sColor = '#1d4ed8'; }
+                else { fColor = '#93c5fd'; sColor = '#3b82f6'; }
+            } else { 
+                if (total > 20) { fColor = '#78350f'; sColor = '#451a03'; }
+                else if (total > 8) { fColor = '#d97706'; sColor = '#b45309'; }
+                else { fColor = '#fcd34d'; sColor = '#f59e0b'; }
+            }
+            return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9, weight: 0.5 };
+        }
         
-            } else if (u > j) { 
-                // 2. HOUSING DOMINANT -> Blues
-                if (total > 20) { fColor = '#1e3a8a'; sColor = '#172554'; }
-                else if (total > 8) { fColor = '#2563eb'; sColor = '#1d4ed8'; }
-                else { fColor = '#93c5fd'; sColor = '#3b82f6'; }
-        
-            } else { 
-                // 3. JOBS DOMINANT -> Oranges
-                if (total > 20) { fColor = '#78350f'; sColor = '#451a03'; }
-                else if (total > 8) { fColor = '#d97706'; sColor = '#b45309'; }
-                else { fColor = '#fcd34d'; sColor = '#f59e0b'; }
-            }
-    
-            return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9, weight: 0.5 };
-        }
-
         // ENGINE: Calculations
         function runSimulation() {
             if (!geojsonLayer) return;

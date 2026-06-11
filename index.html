@@ -596,7 +596,7 @@
                                 net_u = Math.max(0, gross_u - existingUnits);
     
                                 // FIX: Allow jobs from midrise for both 'mixed' and 'current' scenarios
-                                if (baseScenario === 'mixed' || baseScenario === 'current_land_use') { 
+                                if (baseScenario === 'mixed' || baseScenario === 'current') { 
                                     net_j = Math.floor(footprint / 1000);
                                 } else if (baseScenario === 'commercial') {
                                     net_u = 0;

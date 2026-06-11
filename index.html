@@ -590,17 +590,19 @@
                                 let gross = (lotSqft > 10000) ? 16 : (lotSqft > 6000 ? 9 : 0);
                                 net_u = Math.max(0, gross - existingUnits);
                             }
-                            else if (policy === 'midrise' && meetsUnderutilized) {
+                           else if (policy === 'midrise' && meetsUnderutilized) {
                                 const footprint = lotSqft * 0.5;
                                 const gross_u = Math.floor((footprint * (midriseFloors - 1)) / 850);
                                 net_u = Math.max(0, gross_u - existingUnits);
-                                // Jobs from midrise only when scenario allows mixed use
-                                if (baseScenario === 'mixed') {
+    
+                                // FIX: Allow jobs from midrise for both 'mixed' and 'current' scenarios
+                                if (baseScenario === 'mixed' || baseScenario === 'current') { 
                                     net_j = Math.floor(footprint / 1000);
                                 } else if (baseScenario === 'commercial') {
                                     net_u = 0;
                                     net_j = Math.floor(footprint / 1000);
                                 }
+                            }
                                 // residential / current: units only, no jobs from midrise
                             }
 

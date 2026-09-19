@@ -419,6 +419,14 @@
         parcel, separately for units and jobs — it does not add multiple interventions
         together. Click any parcel on the map to see exactly which rule produced its yield.</p>
 
+        <p><strong>With no policies checked and the default "Current Land Use Stays" scenario,
+        the model shows zero net change citywide</strong> — this is a deliberate baseline, not
+        an empty state. (An earlier version of this tool assigned a baseline job yield to
+        underutilized commercial parcels even with nothing checked, which made "no
+        intervention" misleadingly show large job totals. That's fixed: the "current use"
+        scenario's job floor now only applies once at least one policy is active, so toggling
+        everything off is a true do-nothing counterfactual to compare reforms against.)</p>
+
         <h3>Market Absorption Rate — and how we chose 8%</h3>
         <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
         eligible parcel actually redevelops — most owners never sell or build even after
@@ -1000,11 +1008,14 @@
                             maxNetJobs = 0; stackedJobs = 0; // zeroes scenario/policy jobs; parking boost re-added below
                         } else {
                             // current use: enforce single-use based on assessor classification
-                            // F1/F2 commercial parcels → jobs only; add scenario floor yield
+                            // F1/F2 commercial parcels → jobs only, and ONLY if a policy is active
+                            //   (a bare "current use" baseline with nothing checked must mean zero
+                            //   net change — previously this fired regardless of any policy, which
+                            //   made the tool show large job totals with no intervention selected)
                             // A/B residential parcels → units only; zero any jobs not from policy
                             // All other/vacant → pass through whatever the policy loop set
                             if (isCommercial) {
-                                if (meetsUnderutilized) {
+                                if (meetsUnderutilized && activePolicies.length > 0) {
                                     maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                     stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 }

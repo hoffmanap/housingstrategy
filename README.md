@@ -25,6 +25,8 @@ The simulator operates at the individual parcel level. For every parcel in the d
 
 The output is a **potential capacity estimate under realistic but favorable conditions** — not a guarantee of development. Every number produced is a function of parcel size, existing conditions, the selected scenario, any active policy interventions, and any applicable constraints.
 
+**All calculation happens client-side, in the browser, in `index.html`.** There is no separate offline data-processing pipeline — the JavaScript simulation engine in `index.html` is the single, authoritative implementation of the model described below.
+
 ---
 
 ## Parcel Eligibility: The Underutilization Threshold
@@ -43,7 +45,11 @@ Parcels that do not meet the underutilization threshold are skipped for most pol
 
 ## Market Absorption Rate
 
-All gross capacity figures are multiplied by a user-adjustable **absorption rate** before being counted in the totals. This rate represents the share of theoretically eligible parcels that would realistically redevelop over a planning horizon given market conditions, financing constraints, owner willingness, and timing. The default value and range are set in the tool's controls. A rate of 100% means all eligible parcels are assumed to redevelop; lower rates produce more conservative estimates.
+All gross capacity figures are multiplied by a user-adjustable **absorption rate** before being counted in the totals. This rate represents the share of theoretically eligible parcels that would realistically redevelop over a planning horizon given market conditions, financing constraints, owner willingness, and timing. The slider runs from **0% to 100%**, with a default of **8%**.
+
+**Where the 8% default comes from:** El Paso County averaged roughly 2,517 new housing permits per year from 2020–2024 (U.S. Census Bureau / FRED series [BPPRIV048141](https://fred.stlouisfed.org/series/BPPRIV048141)), down from an average of ~3,100/year over 2013–2022 and ~4,300/year over 2003–2012 (reported by [El Paso Matters](https://elpasomatters.org/2024/02/25/el-paso-growth-sprawl-impacts-water-bills/), citing Federal Reserve data). That reporting also notes that city population has been roughly flat despite this permitting activity, indicating much of the recent volume has been greenfield subdivision development outside city limits rather than redevelopment of already-built-up parcels — the specific category of parcel this model targets. Because the model's absorption rate applies specifically to the *infill/underutilized-parcel* pool, and county-wide permitting overstates that pool's activity, the default is set conservatively at 8% rather than at the higher county-wide pace.
+
+**This is an order-of-magnitude anchor, not a precise calibration.** A rigorous calibration would compare actual infill permit counts against the model's own count of eligible underutilized parcels — a cross-reference this repository doesn't yet make. Until that comparison exists, treat 8% as a defensible conservative default grounded in real regional data, not as a validated estimate. A rate of 100% means all eligible parcels are assumed to redevelop (full theoretical build-out); lower rates produce more conservative, near-term estimates.
 
 ---
 
@@ -80,13 +86,9 @@ Policy interventions are layered on top of the base scenario. They modify the un
 **Rationale:** Lot splits allow a single large residential parcel to be subdivided into two developable lots, each capable of supporting one unit. The 7,000 sq ft minimum reflects a practical lower bound for producing two viable buildable lots in El Paso's residential fabric.
 
 ### Mansion Conversions
-**Eligibility:** Underutilized parcels of any size.
-**Yield:**
-- Lots over 6,000 sq ft: 8 gross units, minus existing units
-- Lots between 4,000–6,000 sq ft: 4 gross units, minus existing units
-- Lots under 4,000 sq ft: ineligible
-
-**Rationale:** This intervention assumes large existing structures or oversized lots are converted or redeveloped into small multifamily buildings. Net yield subtracts existing units to avoid double-counting.
+**Eligibility:** Underutilized parcels with a minimum lot size of 4,000 sq ft.
+**Yield:** 4 gross units, minus existing units.
+**Rationale:** This intervention models the internal conversion of a single existing large-footprint home into up to 4 apartments — a distinct pathway from Missing Middle Housing below, which assumes new construction from scratch. Capping at 4 units (rather than scaling with lot size) reflects that conversion yield is bounded by the existing structure's floor area, not by how much additional land is available. Net yield subtracts existing units to avoid double-counting.
 
 ### Missing Middle Housing (4–8 Units)
 **Eligibility:** Underutilized parcels.
@@ -95,7 +97,7 @@ Policy interventions are layered on top of the base scenario. They modify the un
 - Lots between 4,000–7,000 sq ft: 4 gross units, minus existing units
 - Lots under 4,000 sq ft: ineligible
 
-**Rationale:** Targets the "missing middle" typology — duplexes, triplexes, fourplexes, and small apartment buildings — that fits within existing neighborhood scale. Lot size thresholds reflect the minimum footprints needed to feasibly build at these densities in El Paso.
+**Rationale:** Targets the "missing middle" typology — duplexes, triplexes, fourplexes, and small apartment buildings — built new rather than converted from an existing structure, and scaling with lot size the way ground-up construction naturally would. Lot size thresholds reflect the minimum footprints needed to feasibly build at these densities in El Paso.
 
 ### Missing Middle Housing (9–16 Units)
 **Eligibility:** Underutilized parcels.

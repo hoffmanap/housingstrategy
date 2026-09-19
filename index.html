@@ -116,7 +116,7 @@
         }
         .section-title .chevron { font-size: 10px; transition: transform 0.2s; color: var(--text-muted); }
         .section-title.collapsed .chevron { transform: rotate(-90deg); }
-        .collapsible-body { overflow: hidden; }
+        .collapsible-body { overflow: visible; }
         .collapsible-body.collapsed { display: none; }
         
         .control-group { margin-bottom: 12px; position: relative; }
@@ -187,6 +187,15 @@
             float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);
         }
 
+        /* Scenario comparison */
+        .scenario-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }
+        .scenario-row-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+        .scenario-row-label { font-size: 12px; font-weight: 700; color: var(--text-main); }
+        .scenario-row-remove { font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 0; }
+        .scenario-bar-line { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 4px; }
+        .scenario-bar-track { flex: 1; height: 7px; background: var(--surface-alt); border-radius: 4px; overflow: hidden; }
+        .scenario-bar-fill { height: 100%; border-radius: 4px; }
+
         /* Parcel inspector popup */
         .leaflet-popup-content { margin: 12px 14px; font-family: var(--font-ui); }
         .leaflet-popup-content-wrapper { border-radius: 8px; }
@@ -234,12 +243,24 @@
                 <div class="progress-tick" id="pb-jobs-tick" style="left:0%;"></div>
             </div>
         </div>
+        <div id="summary-line" style="font-size: 11.5px; color: var(--text-main); text-align: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.4;"></div>
         <div class="range-note">Bar = conservative estimate (highest single policy per parcel).<br>Tick mark = upper bound if every eligible policy stacked — see methodology.</div>
     </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
         <p class="subhead">Click any parcel on the map to see how its yield was calculated.</p>
+
+        <div class="control-group" style="margin-bottom: 16px;">
+            <label for="parcelSearch">Find an address or parcel ID</label>
+            <div style="display: flex; gap: 6px;">
+                <input type="text" id="parcelSearch" placeholder="e.g. 500 N Stanton St, or a PIDN"
+                    style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: var(--font-ui);"
+                    onkeydown="if(event.key==='Enter') searchLocation();">
+                <button onclick="searchLocation()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-alt); cursor: pointer; font-size: 13px;">Go</button>
+            </div>
+            <div id="searchStatus" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; min-height: 14px;"></div>
+        </div>
 
         <div class="section-title" onclick="toggleSection(this)">Filters &amp; Constraints <span class="chevron">▾</span></div>
         <div class="collapsible-body">
@@ -383,6 +404,11 @@
         </div>
         </div>
 
+        <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <button onclick="loadPreset('full')" style="flex:1; padding: 9px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-alt); color: var(--text-main); font-weight: 600; font-size: 12px; cursor: pointer;">Load Full Reform Package</button>
+            <button onclick="loadPreset('reset')" style="flex:1; padding: 9px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 12px; cursor: pointer;">Reset to Baseline</button>
+        </div>
+
         <button class="run-btn" onclick="runSimulation()">Run Simulation</button>
 
         <div class="section-title" style="margin-top: 15px;">Impact By District</div>
@@ -397,6 +423,16 @@
             <tbody id="table-body">
                 </tbody>
         </table>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">Scenario Comparison <span class="chevron">▾</span></div>
+        <div class="collapsible-body collapsed">
+            <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 10px 0; line-height: 1.4;">Run a configuration, then save it to compare against other configurations side by side. Saves up to 4 at a time.</p>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button onclick="saveScenario()" style="flex:1; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-alt); color: var(--text-main); font-weight: 600; font-size: 12px; cursor: pointer;">Save This Run</button>
+                <button onclick="clearScenarios()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 12px; cursor: pointer;">Clear</button>
+            </div>
+            <div id="scenario-comparison-list"></div>
+        </div>
     </div>
 
     <div id="methodology-overlay" onclick="if(event.target===this) this.style.display='none'">
@@ -547,6 +583,86 @@
             }
         }
 
+        // Address / Parcel ID search. Tries an exact PIDN match against loaded
+        // parcels first (instant, no network call); falls back to OpenStreetMap's
+        // free Nominatim geocoder, biased to El Paso, for addresses and places.
+        let searchMarker = null;
+        async function searchLocation() {
+            const input = document.getElementById('parcelSearch');
+            const statusEl = document.getElementById('searchStatus');
+            const query = input.value.trim();
+            if (!query) return;
+            statusEl.textContent = 'Searching...';
+            statusEl.style.color = 'var(--text-muted)';
+
+            // 1. Exact parcel ID (PIDN) match against currently loaded parcels
+            if (geojsonLayer) {
+                let foundLayer = null;
+                geojsonLayer.eachLayer(l => {
+                    if (foundLayer || !l.feature) return;
+                    const pidn = l.feature.properties.pidn;
+                    if (pidn && String(pidn).toUpperCase() === query.toUpperCase()) foundLayer = l;
+                });
+                if (foundLayer) {
+                    const bounds = foundLayer.getBounds();
+                    map.fitBounds(bounds, { maxZoom: 18 });
+                    setTimeout(() => foundLayer.openPopup(), 400);
+                    statusEl.textContent = 'Found matching parcel (PIDN).';
+                    statusEl.style.color = 'var(--success)';
+                    return;
+                }
+            }
+
+            // 2. Fall back to geocoding as an address, biased to El Paso
+            try {
+                const bias = query.toLowerCase().includes('el paso') ? query : query + ', El Paso, TX';
+                const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&viewbox=-106.72,31.95,-106.20,31.60&bounded=1&q=' + encodeURIComponent(bias);
+                const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+                const results = await res.json();
+                if (results && results.length > 0) {
+                    const { lat, lon, display_name } = results[0];
+                    map.setView([parseFloat(lat), parseFloat(lon)], 17);
+                    if (searchMarker) map.removeLayer(searchMarker);
+                    searchMarker = L.marker([parseFloat(lat), parseFloat(lon)]).addTo(map)
+                        .bindPopup(`<div style="font-size:12px;">${display_name}</div>`).openPopup();
+                    statusEl.textContent = 'Found address — click a nearby parcel for details.';
+                    statusEl.style.color = 'var(--success)';
+                } else {
+                    statusEl.textContent = 'No match found for that address or parcel ID.';
+                    statusEl.style.color = 'var(--jobs)';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Search unavailable right now — try again in a moment.';
+                statusEl.style.color = 'var(--jobs)';
+            }
+        }
+
+        // Preset scenarios — reproducible headline configurations
+        function loadPreset(kind) {
+            const policyIds = ['adu', 'lot_splits', 'mansion_conversions', 'missing_middle_4_8', 'missing_middle_9_16', 'midrise', 'no_parking'];
+            const checkOn = (kind === 'full');
+            policyIds.forEach(id => {
+                const cb = document.querySelector(`.policy-cb[value="${id}"]`);
+                if (cb) cb.checked = checkOn;
+            });
+            document.getElementById('baseScenario').value = 'current';
+
+            // Reset assumptions to their documented defaults so this is a reproducible,
+            // citable configuration rather than whatever the sliders happened to be at.
+            const setSlider = (id, val, labelId, suffix, toLocale) => {
+                const el = document.getElementById(id);
+                el.value = val;
+                document.getElementById(labelId).innerText = (toLocale ? Number(val).toLocaleString() : val) + (suffix || '');
+            };
+            setSlider('absorption', 8, 'absorption-val', '%');
+            setSlider('unitSizeAssumption', 850, 'unitSize-val', '');
+            setSlider('jobSizeAssumption', 1000, 'jobSize-val', '', true);
+            setSlider('parkingBoostAssumption', 20, 'parkingBoost-val', '%');
+
+            runSimulation();
+        }
+
+
         // Update UI Text for the slider
         document.getElementById('absorption').addEventListener('input', function(e) {
             document.getElementById('absorption-val').innerText = e.target.value + '%';
@@ -586,6 +702,8 @@
         window.addEventListener('resize', () => map.invalidateSize());
 
         let geojsonLayer = null;
+        let lastRunResults = null;
+        let savedScenarios = [];
         let historicPolygons = [];
         let deedRestrictionPolygons = [];
         let transitPolygons = [];
@@ -1163,10 +1281,98 @@
                 </tr>`;
                 document.getElementById('table-body').innerHTML = tableHTML;
 
+                // Plain-English summary — identify the top 1-2 districts by combined yield
+                const districtRanked = Object.keys(districtTotals)
+                    .map(d => ({ d, total: districtTotals[d].u + districtTotals[d].j }))
+                    .filter(x => x.total > 0)
+                    .sort((a, b) => b.total - a.total);
+                const summaryEl = document.getElementById('summary-line');
+                if (totalNetUnits === 0 && totalNetJobs === 0) {
+                    summaryEl.innerHTML = activePolicies.length === 0
+                        ? 'No policy interventions selected — this is the do-nothing baseline (zero net change). Check a policy above, or click "Load Full Reform Package," to see impact.'
+                        : 'The selected interventions produce no eligible net-new yield under current filters and constraints.';
+                } else {
+                    const districtPhrase = districtRanked.length >= 2
+                        ? `concentrated most heavily in Districts ${districtRanked[0].d} and ${districtRanked[1].d}`
+                        : districtRanked.length === 1
+                        ? `concentrated most heavily in District ${districtRanked[0].d}`
+                        : '';
+                    summaryEl.innerHTML = `At current settings, this reaches <strong>${unitsPct.toFixed(0)}%</strong> of the housing target and <strong>${jobsPct.toFixed(0)}%</strong> of the jobs target${districtPhrase ? ', ' + districtPhrase : ''}.`;
+                }
+
+                // Capture this run's results so "Save This Run" (in Scenario Comparison) can use them
+                const policyLabels = {
+                    adu: 'ADUs', lot_splits: 'Lot Splits', mansion_conversions: 'Mansion Conv.',
+                    missing_middle_4_8: 'Missing Middle 4-8', missing_middle_9_16: 'Missing Middle 9-16',
+                    midrise: 'Midrise', no_parking: 'Parking Reform'
+                };
+                let scenarioLabel;
+                if (activePolicies.length === 0) {
+                    scenarioLabel = 'Baseline (no policy)';
+                } else if (activePolicies.length === 7) {
+                    scenarioLabel = 'Full Reform Package';
+                } else if (activePolicies.length <= 2) {
+                    scenarioLabel = activePolicies.map(p => policyLabels[p] || p).join(' + ');
+                } else {
+                    scenarioLabel = activePolicies.length + ' policies active';
+                }
+                lastRunResults = {
+                    label: scenarioLabel,
+                    units: totalNetUnits, jobs: totalNetJobs,
+                    unitsPct: unitsPct, jobsPct: jobsPct,
+                    absorption: absorptionRate * 100
+                };
+
             } catch (err) {
                 console.error("Engine Error:", err);
             }
         }
+
+        // --- Scenario Comparison ---
+        function saveScenario() {
+            if (!lastRunResults) { alert('Run the simulation at least once before saving a scenario.'); return; }
+            if (savedScenarios.length >= 4) savedScenarios.shift(); // keep at most 4, oldest drops off
+            savedScenarios.push({ ...lastRunResults, id: Date.now() });
+            renderScenarioComparison();
+        }
+
+        function removeScenario(id) {
+            savedScenarios = savedScenarios.filter(s => s.id !== id);
+            renderScenarioComparison();
+        }
+
+        function clearScenarios() {
+            savedScenarios = [];
+            renderScenarioComparison();
+        }
+
+        function renderScenarioComparison() {
+            const el = document.getElementById('scenario-comparison-list');
+            if (savedScenarios.length === 0) {
+                el.innerHTML = '<p style="font-size: 11.5px; color: var(--text-muted); text-align: center; margin: 4px 0;">No saved scenarios yet — run a configuration and click "Save This Run."</p>';
+                return;
+            }
+            el.innerHTML = savedScenarios.map(s => `
+                <div class="scenario-row">
+                    <div class="scenario-row-header">
+                        <span class="scenario-row-label">${s.label}</span>
+                        <button class="scenario-row-remove" onclick="removeScenario(${s.id})">✕ remove</button>
+                    </div>
+                    <div class="scenario-bar-line">
+                        <span class="housing-text" style="width: 34px;">Units</span>
+                        <div class="scenario-bar-track"><div class="scenario-bar-fill housing-fill" style="width:${Math.min(100, s.unitsPct)}%;"></div></div>
+                        <span style="width: 70px; text-align: right;">${Math.round(s.units).toLocaleString()} (${s.unitsPct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="scenario-bar-line">
+                        <span class="jobs-text" style="width: 34px;">Jobs</span>
+                        <div class="scenario-bar-track"><div class="scenario-bar-fill jobs-fill" style="width:${Math.min(100, s.jobsPct)}%;"></div></div>
+                        <span style="width: 70px; text-align: right;">${Math.round(s.jobs).toLocaleString()} (${s.jobsPct.toFixed(0)}%)</span>
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Absorption: ${s.absorption.toFixed(0)}%</div>
+                </div>
+            `).join('');
+        }
+
 
         window.onload = loadData;
     </script>

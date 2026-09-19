@@ -674,7 +674,7 @@
                 });
 
                 geojsonLayer = L.geoJSON(rawData, {
-                    renderer: L.canvas({ tolerance: 2 }),
+                    renderer: L.svg(),
                     style: function() { return { fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', weight: 0.5, opacity: 0.3 }; }
                 }).addTo(map);
 

@@ -1102,23 +1102,31 @@
                         let stackedParkingJobBoost = 0;
                         if (hasParkingBoost && meetsUnderutilized) {
                             const otherPolicies = activePolicies.filter(p => p !== 'no_parking');
+                            // The standalone floor parking alone would produce — used as a lower bound
+                            // below so that adding a second policy can never REDUCE units relative to
+                            // running parking reform by itself. (Previously, combining parking with a
+                            // policy that produces a small unit count of its own — e.g. a flat +1 from
+                            // ADUs — replaced this floor entirely with 1.2x that small number, which
+                            // could be less than the floor on a large lot: adding a policy made the
+                            // total go down. Fixed to take the larger of the two.)
+                            const parkingAloneFloor = (baseScenario !== 'commercial') ? (lotSqft / 5000) : 0;
+
                             if (otherPolicies.length === 0) {
-                                // Parking is the only active policy — set unit or job floor from scratch
                                 if (baseScenario !== 'commercial') {
-                                    maxNetUnits = Math.max(maxNetUnits, lotSqft / 5000);
-                                    stackedUnits = Math.max(stackedUnits, lotSqft / 5000);
-                                }
-                                if (baseScenario !== 'residential') {
-                                    parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
-                                    stackedParkingJobBoost = parkingJobBoost;
+                                    maxNetUnits = Math.max(maxNetUnits, parkingAloneFloor);
+                                    stackedUnits = Math.max(stackedUnits, parkingAloneFloor);
                                 }
                             } else {
-                                // Parking boosts whatever use the scenario permits
-                                if (baseScenario !== 'commercial') { maxNetUnits *= parkingBoostMultiplier; stackedUnits *= parkingBoostMultiplier; }
-                                if (baseScenario !== 'residential') {
-                                    parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
-                                    stackedParkingJobBoost = parkingJobBoost;
+                                // Parking boosts whatever use the scenario permits, but never below
+                                // what parking alone would have guaranteed on this lot.
+                                if (baseScenario !== 'commercial') {
+                                    maxNetUnits = Math.max(maxNetUnits * parkingBoostMultiplier, parkingAloneFloor);
+                                    stackedUnits = Math.max(stackedUnits * parkingBoostMultiplier, parkingAloneFloor);
                                 }
+                            }
+                            if (baseScenario !== 'residential') {
+                                parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
+                                stackedParkingJobBoost = parkingJobBoost;
                             }
                         }
 

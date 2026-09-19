@@ -119,6 +119,41 @@
         #loading-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: 600; color: var(--primary); flex-direction: column;
         }
+
+        /* Methodology Modal */
+        #methodology-btn {
+            background: var(--surface); color: var(--text-main); border: 1px solid var(--border);
+            padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+            width: 100%; margin-top: 8px; margin-bottom: 4px; text-align: left; display: flex; align-items: center; gap: 6px;
+        }
+        #methodology-btn:hover { background: var(--bg-color); }
+        #methodology-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15,23,42,0.55); z-index: 5000; align-items: center; justify-content: center;
+        }
+        #methodology-modal {
+            background: var(--surface); width: min(720px, 90vw); max-height: 85vh; overflow-y: auto;
+            border-radius: 10px; padding: 28px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #methodology-modal h2 { margin-top: 0; }
+        #methodology-modal h3 { font-size: 14px; margin: 20px 0 6px 0; color: var(--text-main); }
+        #methodology-modal p, #methodology-modal li { font-size: 13px; line-height: 1.55; color: #334155; }
+        #methodology-modal .caveat {
+            background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px;
+            font-size: 12.5px; margin-top: 18px;
+        }
+        #methodology-close {
+            float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);
+        }
+
+        /* Parcel inspector popup */
+        .leaflet-popup-content { margin: 12px 14px; }
+        .parcel-popup strong { color: var(--text-main); }
+
+        /* Range banner note */
+        .range-note {
+            font-size: 10.5px; color: var(--text-muted); text-align: center; margin-top: 6px; line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -138,10 +173,24 @@
             <div class="stat-group">Remaining: <span id="banner-rem-units" style="color: #64748b;">35,000</span></div>
             <div class="stat-group">Remaining: <span id="banner-rem-jobs" style="color: #64748b;">55,000</span></div>
         </div>
+        <div class="banner-stats" style="font-size: 12px; margin-top: 4px;">
+            <div class="stat-group">Yield: <span id="banner-units" style="color: var(--housing);">0</span> units
+                <span style="color:#94a3b8;">(up to <span id="banner-units-hi">0</span> if policies stacked)</span></div>
+        </div>
+        <div class="banner-stats" style="font-size: 12px;">
+            <div class="stat-group">Yield: <span id="banner-jobs" style="color: var(--jobs);">0</span> jobs
+                <span style="color:#94a3b8;">(up to <span id="banner-jobs-hi">0</span> if policies stacked)</span></div>
+        </div>
+        <div class="range-note">Headline number = conservative (single highest-yielding policy per parcel).<br>
+            "Up to" = upper bound if every eligible policy stacked additively — see methodology.</div>
     </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
+
+        <button id="methodology-btn" onclick="document.getElementById('methodology-overlay').style.display='flex'">
+            ⓘ How this model works — methodology &amp; caveats
+        </button>
 
         <div class="section-title">Filters & Constraints</div>
         
@@ -255,6 +304,65 @@
         </table>
     </div>
 
+    <div id="methodology-overlay" onclick="if(event.target===this) this.style.display='none'">
+      <div id="methodology-modal">
+        <button id="methodology-close" onclick="document.getElementById('methodology-overlay').style.display='none'">✕</button>
+        <h2>How This Model Works</h2>
+        <p>This tool estimates <strong>potential parcel-level redevelopment capacity under
+        reformed zoning</strong> — it is not a prediction of what will get built, and it does
+        not check whether a parcel's <em>current</em> base zoning allows the modeled yield.
+        Each policy intervention is assumed to supply its own entitlement.</p>
+
+        <h3>Eligibility</h3>
+        <p>A parcel qualifies for redevelopment yield if it is assessor-coded vacant, or its
+        building-to-lot coverage is below 15% (residential/current-use scenarios) or 45%
+        (commercial &amp; mixed-use scenarios), or it has no recorded units or building area.</p>
+
+        <h3>How yield is calculated</h3>
+        <p>Each active policy proposes a unit and/or job yield for a parcel. The model's
+        headline number takes the <strong>single highest-yielding intervention</strong> per
+        parcel, separately for units and jobs — it does not add multiple interventions
+        together. Click any parcel on the map to see exactly which rule produced its yield.</p>
+
+        <h3>Market Absorption Rate</h3>
+        <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
+        eligible parcel actually redevelops. It is the single most consequential assumption
+        in the model — try the slider at both extremes before drawing conclusions from any
+        one run.</p>
+
+        <h3>Geographic constraints</h3>
+        <p>Historic district protection, transit-corridor-only filtering, and recorded deed
+        restrictions can each be toggled. Deed restrictions, when enabled, are applied as a
+        <strong>final override</strong> after all other calculations — a single-family-only
+        covenant caps a parcel at 1 unit and 0 jobs regardless of scenario or policy.</p>
+
+        <h3>Key limitations</h3>
+        <ul>
+          <li>Estimates capacity, not predicted outcomes — land price, financing, owner
+              intent, and permitting timelines are not modeled.</li>
+          <li>Missing lot size defaults to 6,000 sq ft; missing building area defaults to
+              0 sq ft, which tends to count undocumented parcels as redevelopment-eligible —
+              treat totals in data-sparse areas with extra caution.</li>
+          <li>Per-job (1,000 sq ft) and per-unit (850 sq ft) figures are fixed planning
+              benchmarks, not parcel-specific estimates.</li>
+          <li>Deed-restriction coverage reflects recorded covenants in the dataset only —
+              informal or unrecorded restrictions are not captured.</li>
+          <li>"Eliminate Parking Minimums" can still show job yield under the Residential
+              Only scenario — this is intentional (parking reform is treated as an
+              infrastructure policy that enables ground-floor commercial regardless of the
+              dominant land use), not a bug.</li>
+        </ul>
+
+        <div class="caveat">
+          <strong>Why the headline number is conservative:</strong> a parcel eligible for
+          both a lot split and missing-middle housing is only credited with the larger of
+          the two, never both. The "up to" figure in the banner shows what the same parcels
+          would yield if every eligible policy stacked additively instead — treat the true
+          answer as somewhere between the two.
+        </div>
+      </div>
+    </div>
+
     <div id="map">
         <div class="map-legend">
             <div class="legend-title">Simulation Yields</div>
@@ -289,8 +397,10 @@
 
         // Initialize Map
         const map = L.map('map', { preferCanvas: true }).setView([31.7619, -106.4850], 11);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            subdomains: 'abc'
         }).addTo(map);
 
         let geojsonLayer = null;
@@ -550,6 +660,8 @@
 
                 let totalNetUnits = 0;
                 let totalNetJobs = 0;
+                let totalStackedUnits = 0;
+                let totalStackedJobs = 0;
                 let districtTotals = { '1':{u:0, j:0}, '2':{u:0, j:0}, '3':{u:0, j:0}, '4':{u:0, j:0}, '5':{u:0, j:0}, '6':{u:0, j:0}, '7':{u:0, j:0}, '8':{u:0, j:0} };
 
                 geojsonLayer.eachLayer(function(layer) {
@@ -598,27 +710,34 @@
 
                         let maxNetUnits = 0;
                         let maxNetJobs = 0;
+                        let stackedUnits = 0;
+                        let stackedJobs = 0;
+                        props._winningRuleUnits = null;
+                        props._winningRuleJobs = null;
 
                         activePolicies.forEach(policy => {
-                            let net_u = 0, net_j = 0;
+                            let net_u = 0, net_j = 0, ruleLabel = null;
                             
                             if (policy === 'adu' && existingUnits > 0 && lotSqft >= 3000) {
-                                net_u = 1; 
+                                net_u = 1; ruleLabel = 'ADU';
                             } 
                             else if (policy === 'lot_splits' && lotSqft >= 7000 && meetsUnderutilized) {
-                                net_u = 1; 
+                                net_u = 1; ruleLabel = 'Lot Split';
                             }
                             else if (policy === 'mansion_conversions' && meetsUnderutilized) {
                                 let gross = (lotSqft > 6000) ? 8 : (lotSqft > 4000 ? 4 : 0);
                                 net_u = Math.max(0, gross - existingUnits);
+                                ruleLabel = 'Mansion Conversion';
                             }
                             else if (policy === 'missing_middle_4_8' && meetsUnderutilized) {
                                 let gross = (lotSqft > 7000) ? 8 : (lotSqft > 4000 ? 4 : 0);
                                 net_u = Math.max(0, gross - existingUnits);
+                                ruleLabel = 'Missing Middle (4-8)';
                             }
                             else if (policy === 'missing_middle_9_16' && meetsUnderutilized) {
                                 let gross = (lotSqft > 10000) ? 16 : (lotSqft > 6000 ? 9 : 0);
                                 net_u = Math.max(0, gross - existingUnits);
+                                ruleLabel = 'Missing Middle (9-16)';
                             }
                             else if (policy === 'midrise' && meetsUnderutilized) {
                                 const footprint = lotSqft * 0.5;
@@ -637,10 +756,16 @@
                                     // base scenario block below enforces single-use for 'current'
                                     net_j = net_j_candidate;
                                 }
+                                ruleLabel = `Midrise (${midriseFloors} fl)`;
                             }
 
-                            if (net_u > maxNetUnits) maxNetUnits = net_u;
-                            if (net_j > maxNetJobs) maxNetJobs = net_j;
+                            // Conservative (headline) accumulator — highest single intervention wins
+                            if (net_u > maxNetUnits) { maxNetUnits = net_u; if (net_u > 0) props._winningRuleUnits = ruleLabel; }
+                            if (net_j > maxNetJobs) { maxNetJobs = net_j; if (net_j > 0) props._winningRuleJobs = ruleLabel; }
+
+                            // Upper-bound accumulator — every eligible policy stacks additively
+                            stackedUnits += net_u;
+                            stackedJobs += net_j;
                         });
 
                         // PARKING BOOST: computed before base scenario so it survives the residential zero.
@@ -648,20 +773,26 @@
                         // except vertical mixed use which allows both.
                         // Job formula: lotSqft * ground-floor coverage (50%) / 1,000 sq ft per job.
                         let parkingJobBoost = 0;
+                        let stackedParkingJobBoost = 0;
                         if (hasParkingBoost && meetsUnderutilized) {
                             const otherPolicies = activePolicies.filter(p => p !== 'no_parking');
                             if (otherPolicies.length === 0) {
                                 // Parking is the only active policy — set unit or job floor from scratch
                                 if (baseScenario !== 'commercial') {
                                     maxNetUnits = Math.max(maxNetUnits, lotSqft / 5000);
+                                    stackedUnits = Math.max(stackedUnits, lotSqft / 5000);
                                 }
                                 if (baseScenario !== 'residential') {
                                     parkingJobBoost = (lotSqft * 0.5) / 1000;
+                                    stackedParkingJobBoost = parkingJobBoost;
                                 }
                             } else {
                                 // Parking boosts whatever use the scenario permits
-                                if (baseScenario !== 'commercial') maxNetUnits *= 1.20;
-                                if (baseScenario !== 'residential') parkingJobBoost = (lotSqft * 0.5) / 1000;
+                                if (baseScenario !== 'commercial') { maxNetUnits *= 1.20; stackedUnits *= 1.20; }
+                                if (baseScenario !== 'residential') {
+                                    parkingJobBoost = (lotSqft * 0.5) / 1000;
+                                    stackedParkingJobBoost = parkingJobBoost;
+                                }
                             }
                         }
 
@@ -669,36 +800,48 @@
                         // 'residential' hard-zeros scenario-derived jobs — but parking job boost
                         // is added back in afterwards so it always survives.
                         if (baseScenario === 'commercial') {
-                            maxNetUnits = 0;
-                            if (meetsUnderutilized) maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
+                            maxNetUnits = 0; stackedUnits = 0;
+                            if (meetsUnderutilized) {
+                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
+                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
+                            }
                         } else if (baseScenario === 'mixed') {
                             if (meetsUnderutilized) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
+                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
                                 if (maxNetUnits === 0 && activePolicies.length === 0) {
                                     maxNetUnits = (lotSqft * 0.25) / 850;
+                                    stackedUnits = maxNetUnits;
                                 }
                             }
                         } else if (baseScenario === 'residential') {
-                            maxNetJobs = 0; // zeroes scenario/policy jobs; parking boost re-added below
+                            maxNetJobs = 0; stackedJobs = 0; // zeroes scenario/policy jobs; parking boost re-added below
                         } else {
                             // current use: enforce single-use based on assessor classification
                             // F1/F2 commercial parcels → jobs only; add scenario floor yield
                             // A/B residential parcels → units only; zero any jobs not from policy
                             // All other/vacant → pass through whatever the policy loop set
                             if (isCommercial) {
-                                if (meetsUnderutilized) maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
-                                maxNetUnits = 0;
+                                if (meetsUnderutilized) {
+                                    maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
+                                    stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
+                                }
+                                maxNetUnits = 0; stackedUnits = 0;
                             } else if (isResidential) {
-                                maxNetJobs = 0;
+                                maxNetJobs = 0; stackedJobs = 0;
                             }
                             // vacant/other: no override — policy loop values pass through
                         }
 
                         // Re-apply parking job boost after base scenario — always survives residential zero
                         maxNetJobs += parkingJobBoost;
+                        stackedJobs += stackedParkingJobBoost;
 
                         finalUnits = maxNetUnits * absorptionRate;
                         finalJobs = maxNetJobs * absorptionRate;
+
+                        let stackedFinalUnits = stackedUnits * absorptionRate;
+                        let stackedFinalJobs = stackedJobs * absorptionRate;
 
                         // COVENANTS: Final override — wins over every scenario and policy.
                         // Field logic:
@@ -719,22 +862,30 @@
                                 // Strictly one single-family unit — no MF, no jobs
                                 finalUnits = Math.min(finalUnits, 1);
                                 finalJobs  = 0;
+                                stackedFinalUnits = Math.min(stackedFinalUnits, 1);
+                                stackedFinalJobs = 0;
                             } else {
                                 // Multifamily check
                                 if (allowMf === 'false' || allowMf === 'no' || allowMf === 'n') {
                                     finalUnits = Math.min(finalUnits, 1);
+                                    stackedFinalUnits = Math.min(stackedFinalUnits, 1);
                                 }
                                 // Commercial / jobs check
                                 if (allowCom === 'false' || allowCom === 'no' || allowCom === 'n') {
                                     finalJobs = 0;
+                                    stackedFinalJobs = 0;
                                 }
                             }
 
                             // Hard unit cap — applies regardless of which branch above ran
                             if (!isNaN(maxCap) && maxCap >= 0) {
                                 finalUnits = Math.min(finalUnits, maxCap);
+                                stackedFinalUnits = Math.min(stackedFinalUnits, maxCap);
                             }
                         }
+
+                        totalStackedUnits += stackedFinalUnits;
+                        totalStackedJobs += stackedFinalJobs;
                     }
 
                     // Accumulate AFTER covenant override so totals reflect restricted values
@@ -748,6 +899,23 @@
                     }
                     
                     layer.setStyle(getTrivariateStyle(finalUnits, finalJobs));
+
+                    const covenantNote = (applyCovenants && props._hasDeedRestriction)
+                        ? '<br><span style="color:#b45309;">⚠ Deed restriction applied</span>' : '';
+                    const ruleNote = [props._winningRuleUnits, props._winningRuleJobs]
+                        .filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
+                    layer.bindPopup(`
+                        <div class="parcel-popup" style="font-size:12px; line-height:1.5;">
+                          <strong>District ${props._district}</strong><br>
+                          Land use code: ${propertyTag}<br>
+                          Lot size: ${Math.round(lotSqft).toLocaleString()} sq ft<br>
+                          Existing units: ${existingUnits}<br>
+                          Underutilized: ${meetsUnderutilized ? 'Yes' : 'No'}<br>
+                          Rule applied: ${ruleNote || (meetsUnderutilized ? 'Base scenario floor' : '—')}<br>
+                          <strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong>
+                          ${covenantNote}
+                        </div>
+                    `);
                 }); 
 
                 // Round data directly at the UI Output to keep probability math accurate
@@ -756,6 +924,11 @@
                 
                 document.getElementById('banner-rem-units').style.color = (totalNetUnits >= 35000) ? 'var(--success)' : '#64748b';
                 document.getElementById('banner-rem-jobs').style.color = (totalNetJobs >= 55000) ? 'var(--success)' : '#64748b';
+
+                document.getElementById('banner-units').innerText = Math.round(totalNetUnits).toLocaleString();
+                document.getElementById('banner-jobs').innerText = Math.round(totalNetJobs).toLocaleString();
+                document.getElementById('banner-units-hi').innerText = Math.round(Math.max(totalNetUnits, totalStackedUnits)).toLocaleString();
+                document.getElementById('banner-jobs-hi').innerText = Math.round(Math.max(totalNetJobs, totalStackedJobs)).toLocaleString();
 
                 let tableHTML = "";
                 for (let i = 1; i <= 8; i++) {

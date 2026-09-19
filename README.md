@@ -5,6 +5,20 @@ An interactive parcel-level simulation tool for exploring how different land use
 View the Simulator here: https://hoffmanap.github.io/housingstrategy/
 ---
 
+## Using the Tool
+
+The sidebar's **"How this model works"** button opens an in-app methodology
+panel covering eligibility rules, yield logic, and known caveats — the
+condensed version of everything documented below. **Click any parcel on the
+map** to see which specific rule produced its yield (base scenario, ADU, lot
+split, missing middle, midrise, or parking reform), along with the parcel's
+underlying lot size, land use code, and existing unit count. The top banner
+reports two numbers per category: a **conservative headline figure** (highest
+single intervention per parcel — see below) and an **"up to" upper bound**
+(what the same parcels would yield if every eligible policy stacked
+additively instead). Treat the true answer as somewhere between the two,
+not as the headline number alone.
+
 ## How the Model Works
 
 The simulator operates at the individual parcel level. For every parcel in the dataset, the model evaluates whether a given combination of scenario and policy interventions would yield new housing units or jobs, applies a market absorption rate to translate theoretical capacity into realistic near-term production, and then aggregates results across all parcels to produce citywide and district-level totals.
@@ -166,10 +180,22 @@ These targets represent El Paso's long-range housing and employment goals. When 
 
 **This model estimates potential capacity, not predicted outcomes.** Development depends on factors not captured here, including land prices, construction costs, financing availability, infrastructure capacity, owner intent, and permitting timelines.
 
-**Parcel data quality affects results.** Missing lot square footage values default to 6,000 sq ft. Missing building square footage is treated as zero. Zoning tag matching uses string pattern detection and may not capture every parcel correctly.
+**The model does not check current base zoning.** Each policy intervention is assumed to supply its own entitlement — the tool models capacity *under the reform*, not capacity under today's zoning code. Eligibility is based on parcel physical characteristics (coverage ratio, vacancy, existing units), not on what current zoning permits.
 
-**Interventions do not stack additively.** When multiple housing policies are active, the model takes the single highest-yielding intervention per parcel for units and for jobs separately. This is a conservative assumption — in practice, a parcel might be developed in a way that combines elements of multiple policies.
+**Parcel data quality affects results.** Missing lot square footage values default to 6,000 sq ft. Missing building square footage is treated as zero — which tends to count undocumented parcels as underutilized/eligible rather than excluding them, so totals in data-sparse areas should be treated with extra caution. Zoning tag matching uses string pattern detection and may not capture every parcel correctly.
 
-**The absorption rate is the most consequential single assumption.** At lower absorption rates, even aggressive policy combinations produce modest totals. Calibrating this rate to El Paso's historical development pace is recommended for scenario analysis intended to inform policy.
+**Interventions do not stack additively.** When multiple housing policies are active, the model's headline number takes the single highest-yielding intervention per parcel for units and for jobs separately. This is a deliberately conservative assumption. The interface now reports an "up to" upper bound alongside the headline figure, reflecting what the same parcels would yield if every eligible policy stacked instead — treat the true answer as falling between the two, not as either bound alone.
+
+**Per-unit and per-job area assumptions are fixed planning benchmarks**, not parcel-specific estimates: 1,000 sq ft per job, 850 sq ft per multifamily unit, 50% ground-floor coverage. These are reasonable citywide averages but will over- or under-state yield on any individual parcel that differs from them.
+
+**The absorption rate is the most consequential single assumption.** At lower absorption rates, even aggressive policy combinations produce modest totals. Calibrating this rate to El Paso's historical development pace — e.g. against actual permitting activity — is recommended for scenario analysis intended to inform policy, rather than treating the default as authoritative.
 
 **Covenant data coverage may be incomplete.** The deed restriction overlay reflects recorded covenants in the dataset but does not capture all private deed restrictions, HOA rules, or informal agreements that might limit redevelopment.
+
+**No equity or displacement dimension is modeled.** The tool reports capacity by council district but does not flag concentration of yield in historically under-invested or majority-renter areas. Cross-referencing output with ACS/HMDA demographic data is recommended before using results to argue for or against a specific policy's distributional effects.
+
+---
+
+## License
+
+This repository is licensed under the MIT License (see `LICENSE`). The underlying parcel, assessor, and covenant data are sourced from public records and are not covered by the code license — see their original sources for terms of use.

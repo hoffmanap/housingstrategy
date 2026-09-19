@@ -475,6 +475,18 @@
             maxNativeZoom: 16
         }).addTo(map);
 
+        // FIX: In the flex/header layout, the map's container can settle to its
+        // final size slightly after Leaflet's initial size measurement (e.g. once
+        // web fonts finish loading and the header reflows). A stale cached size
+        // makes click→coordinate hit-testing silently miss parcels — popups never
+        // open even though everything looks correct. Force a re-measure at every
+        // point the layout could have shifted.
+        setTimeout(() => map.invalidateSize(), 200);
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => map.invalidateSize());
+        }
+        window.addEventListener('resize', () => map.invalidateSize());
+
         let geojsonLayer = null;
         let historicPolygons = [];
         let deedRestrictionPolygons = [];
@@ -667,6 +679,7 @@
                 }).addTo(map);
 
                 document.getElementById('loading-overlay').style.display = 'none';
+                map.invalidateSize();
                 runSimulation();
 
             } catch (error) {
@@ -977,6 +990,12 @@
                         ? '<br><span style="color:#b45309;">⚠ Deed restriction applied</span>' : '';
                     const ruleNote = [props._winningRuleUnits, props._winningRuleJobs]
                         .filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
+                    const policyLabel = ruleNote || (meetsUnderutilized ? 'Base scenario floor' : 'None — not eligible');
+                    let hbu;
+                    if (finalUnits > 0 && finalJobs > 0) hbu = 'Mixed use (housing + commercial)';
+                    else if (finalUnits > 0) hbu = 'Residential';
+                    else if (finalJobs > 0) hbu = 'Commercial';
+                    else hbu = 'No change from existing use';
                     layer.bindPopup(`
                         <div class="parcel-popup" style="font-size:12px; line-height:1.5;">
                           <strong>District ${props._district}</strong><br>
@@ -984,7 +1003,8 @@
                           Lot size: ${Math.round(lotSqft).toLocaleString()} sq ft<br>
                           Existing units: ${existingUnits}<br>
                           Underutilized: ${meetsUnderutilized ? 'Yes' : 'No'}<br>
-                          Rule applied: ${ruleNote || (meetsUnderutilized ? 'Base scenario floor' : '—')}<br>
+                          Highest &amp; best use (this scenario): <strong>${hbu}</strong><br>
+                          Policy applied: ${policyLabel}<br>
                           <span class="yield-line"><strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong></span>
                           ${covenantNote}
                         </div>

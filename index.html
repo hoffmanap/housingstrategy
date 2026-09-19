@@ -880,8 +880,15 @@
                             for (let { feature: poly, bbox } of deedIndexed) {
                                 if (bbox && !bboxContains(bbox, c)) continue;
                                 if (turf.booleanPointInPolygon(c, poly)) {
-                                    p._hasDeedRestriction = true;
-                                    p._deedProps = poly.properties || {};
+                                    // Only a real, affirmative covenant counts — many polygons in this
+                                    // layer are unrestricted reference plats (COVENANT: 'N'), which were
+                                    // previously flagged as restricted just for spatial overlap.
+                                    const covProps = poly.properties || {};
+                                    const covenantFlag = String(covProps.COVENANT || '').trim().toUpperCase();
+                                    if (covenantFlag === 'Y') {
+                                        p._hasDeedRestriction = true;
+                                        p._deedProps = covProps;
+                                    }
                                     break;
                                 }
                             }
@@ -1008,8 +1015,19 @@
                         // rural/ag/desert acreage (D series) — all per Texas assessor state_cd classification
                         const isVacant = /^A[78]$|^C(1$|10$|2$|3$|6$|7$|8$|9$)|^D/.test(propertyTag);
                         // Broaden match: trim and accept F1, F2, and any F1x/F2x variants
-                        const isCommercial = /^F[12]/.test(propertyTag.trim());
-                        const isResidential = /^[AB]/.test(propertyTag) && !isVacant;
+                        let isCommercial = /^F[12]/.test(propertyTag.trim());
+                        let isResidential = /^[AB]/.test(propertyTag) && !isVacant;
+                        // Fallback for state_cd codes the regexes above don't recognize (e.g. "XV-C" —
+                        // exempt/institutional parcels like churches, schools, government buildings —
+                        // or utility codes like "J2"). Previously these matched neither isCommercial nor
+                        // isResidential and fell through to a branch that left both units and jobs
+                        // unfiltered, which could make a single-use property appear as "mixed use" with
+                        // no real basis. use_desc is a plainer, more reliable signal in these cases.
+                        if (!isVacant && !isCommercial && !isResidential && useDesc) {
+                            const u = useDesc.toUpperCase();
+                            if (u.includes('COMMERCIAL') || u.includes('INDUSTRIAL') || u.includes('UTILIT')) isCommercial = true;
+                            else if (u.includes('RESIDENTIAL')) isResidential = true;
+                        }
                         const bldgRatio = (lotSqft > 0) ? (bldgSqft / lotSqft) : 1;
                         
                         const isUpzoning = (baseScenario === 'mixed' || baseScenario === 'commercial');

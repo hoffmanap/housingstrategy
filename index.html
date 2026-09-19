@@ -330,7 +330,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="no_parking"> Eliminate Parking Minimums
             <span class="info-icon">i</span>
-            <div class="tooltip">Boosts achievable density by 20% on selected interventions by freeing up parking space for housing.</div>
+            <div class="tooltip">Boosts achievable density by 20% on selected interventions by freeing up parking space for housing. Based on research (Shoup) showing a parking space + aisle typically eats 300-400 sq ft of buildable land — 20% is this model's own moderate estimate of the recovered yield, not a precise finding for El Paso. Full explanation in "How this model works."</div>
         </label>
 
         <div class="control-group" style="margin-top: 15px;">
@@ -340,9 +340,47 @@
             <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
                 <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Why 8%? <span class="info-icon" style="margin-left:3px;">i</span></span>
                 <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    El Paso County averaged ~2,517 new housing permits/year, 2020–2024 (U.S. Census/FRED series BPPRIV048141) — down from ~3,100/yr (2013–2022) and ~4,300/yr (2003–2012). Most of that recent activity has been greenfield development outside city limits rather than redevelopment of already-built-up parcels, so the true infill-specific pace this model targets is smaller still. 8% is set conservatively, in that light — not a precise calibration against this tool's own eligible-parcel count.
+                    El Paso County averaged ~2,517 new housing permits/year, 2020–2024 (Census/FRED BPPRIV048141) — down from ~3,100/yr (2013–2022) and ~4,300/yr (2003–2012). Most of that was greenfield growth, not redevelopment of already-built-up parcels — the category this model targets — so 8% is set conservatively below that pace. See "How this model works" for the full worked example and reasoning.
                 </div>
             </div>
+        </div>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">Model Assumptions (Advanced) <span class="chevron">▾</span></div>
+        <div class="collapsible-body collapsed">
+        <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 12px 0; line-height: 1.4;">These three numbers are general planning-literature benchmarks, not El Paso-specific data (see "How this model works" for full sourcing). Defaults reflect our best reasoning — adjust them if you have better local evidence.</p>
+
+        <div class="control-group">
+            <label>Unit Size: <span id="unitSize-val" style="margin-left: 5px; color: var(--primary);">850</span> sq ft/unit</label>
+            <input type="range" id="unitSizeAssumption" min="500" max="1400" value="850" step="25">
+            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
+                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
+                    Controls unit yield from Midrise Development only (other interventions use flat unit counts). <strong>Increase</strong> if you expect future construction to skew toward larger family-sized 2–3BR units — this LOWERS the unit count. <strong>Decrease</strong> toward 600–700 if you expect efficient studios/1BR to dominate, or if recent local multifamily permits run smaller than 850 sq ft — this RAISES the unit count.
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Job Density: <span id="jobSize-val" style="margin-left: 5px; color: var(--primary);">1,000</span> sq ft/job</label>
+            <input type="range" id="jobSizeAssumption" min="250" max="2000" value="1000" step="50">
+            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
+                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
+                    A LOWER number means denser employment (more jobs per sq ft) and a HIGHER job count. <strong>Decrease</strong> toward 200–500 if you expect dense uses like retail or food service to dominate future commercial space. <strong>Increase</strong> toward 1,500–2,000 if you expect low-density uses like warehousing or light industrial — this LOWERS the job count.
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Parking Reform Boost: <span id="parkingBoost-val" style="margin-left: 5px; color: var(--primary);">20%</span></label>
+            <input type="range" id="parkingBoostAssumption" min="0" max="50" value="20" step="5">
+            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
+                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
+                    How much extra unit yield "Eliminate Parking Minimums" adds to other active interventions. <strong>Decrease</strong> toward 0% for a maximally conservative estimate that assumes parking reform has little practical effect on what gets built. <strong>Increase</strong> toward 30–50% if El Paso's current parking minimums are unusually large relative to actual demand, freeing up more land than a typical city.
+                </div>
+            </div>
+        </div>
         </div>
 
         <button class="run-btn" onclick="runSimulation()">Run Simulation</button>
@@ -381,11 +419,50 @@
         parcel, separately for units and jobs — it does not add multiple interventions
         together. Click any parcel on the map to see exactly which rule produced its yield.</p>
 
-        <h3>Market Absorption Rate</h3>
+        <h3>Market Absorption Rate — and how we chose 8%</h3>
         <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
-        eligible parcel actually redevelops. It is the single most consequential assumption
-        in the model — try the slider at both extremes before drawing conclusions from any
-        one run.</p>
+        eligible parcel actually redevelops — most owners never sell or build even after
+        a zoning change makes it possible. <strong>Worked example:</strong> if a policy
+        combination makes 8,000 parcels eligible for an average of 2.5 net units each,
+        that's 20,000 gross units at 100% absorption. At the default 8%, the model counts
+        1,600 of those as a realistic 10-year outcome — the rest remain technically
+        possible but aren't assumed to get built.</p>
+        <p>The 8% default is the one number in this model grounded in real regional data
+        rather than a generic rule of thumb: El Paso County averaged ~2,517 new housing
+        permits/year from 2020–2024 (Census/FRED), down from ~3,100/yr (2013–2022) and
+        ~4,300/yr (2003–2012). But most of that activity has been greenfield subdivision
+        growth at the county's edge, not redevelopment of already-built-up parcels — the
+        only category this model touches — so the true infill-specific pace is smaller
+        still. 8% is set conservatively below the county-wide pace in that light. It's a
+        defensible starting point, not a validated calibration — that would require
+        comparing actual infill permits against this model's own eligible-parcel count,
+        which the underlying data doesn't yet support. Full sourcing is in the README.</p>
+
+        <h3>Why does eliminating parking minimums boost yield by 20% by default?</h3>
+        <p>A parking space plus its drive aisle typically consumes 300–400 sq ft — often
+        more land than the unit it serves. This is the central finding of decades of
+        parking-policy research (notably UCLA's Donald Shoup, <em>The High Cost of Free
+        Parking</em>): minimum parking requirements convert a large share of a site into
+        space for cars, and removing that mandate frees land for housing or commercial
+        space instead. That research explains <em>why</em> this matters; it doesn't hand
+        over one universal conversion number, since actual land recovered depends on lot
+        shape and each city's specific parking code. 20% is this model's own moderate,
+        round-number default estimate of that boost — noticeable but not assuming a
+        windfall. <strong>This number is adjustable</strong> — see "Model Assumptions
+        (Advanced)" in the sidebar — with guidance on which direction to move it.</p>
+
+        <h3>Where do the default 850 sq ft/unit and 1,000 sq ft/job figures come from?</h3>
+        <p>These are general planning-literature benchmarks, not El Paso-specific data —
+        no local dataset exists to calibrate them, unlike the absorption rate above.
+        850 sq ft approximates a modest, efficient 1–2 bedroom multifamily unit. 1,000 sq
+        ft/job is a blended midpoint across commercial uses that actually vary widely —
+        dense retail/office can run 200–500 sq ft/employee, while warehouse/light-industrial
+        can run 1,000–2,000+ sq ft/employee. Using one moderate figure everywhere avoids
+        assuming the densest possible use on every parcel, but it means parcels that would
+        realistically become dense retail are likely undercounted on jobs, and ones that
+        would become light-industrial are likely overcounted. <strong>Both figures are
+        adjustable</strong> in "Model Assumptions (Advanced)" in the sidebar, each with
+        guidance on which direction fits your expectations for what gets built.</p>
 
         <h3>Geographic constraints</h3>
         <p>Historic district protection, transit-corridor-only filtering, and recorded deed
@@ -400,14 +477,18 @@
           <li>Missing lot size defaults to 6,000 sq ft; missing building area defaults to
               0 sq ft, which tends to count undocumented parcels as redevelopment-eligible —
               treat totals in data-sparse areas with extra caution.</li>
-          <li>Per-job (1,000 sq ft) and per-unit (850 sq ft) figures are fixed planning
-              benchmarks, not parcel-specific estimates.</li>
           <li>Deed-restriction coverage reflects recorded covenants in the dataset only —
               informal or unrecorded restrictions are not captured.</li>
           <li>"Eliminate Parking Minimums" can still show job yield under the Residential
               Only scenario — this is intentional (parking reform is treated as an
               infrastructure policy that enables ground-floor commercial regardless of the
               dominant land use), not a bug.</li>
+          <li><strong>District 1's source data has a known gap:</strong> its parcel file
+              is currently missing existing-conditions data for every parcel (0 of 950),
+              unlike every other district. Any parcel with zero data on every field shows
+              a warning in its popup. District 1's totals should not be trusted until the
+              source file is regenerated with the same data join the other districts have
+              — see the README's "Known Data Quality Issues" section.</li>
         </ul>
 
         <div class="caveat">
@@ -461,6 +542,15 @@
         // Update UI Text for the slider
         document.getElementById('absorption').addEventListener('input', function(e) {
             document.getElementById('absorption-val').innerText = e.target.value + '%';
+        });
+        document.getElementById('unitSizeAssumption').addEventListener('input', function(e) {
+            document.getElementById('unitSize-val').innerText = e.target.value;
+        });
+        document.getElementById('jobSizeAssumption').addEventListener('input', function(e) {
+            document.getElementById('jobSize-val').innerText = parseInt(e.target.value).toLocaleString();
+        });
+        document.getElementById('parkingBoostAssumption').addEventListener('input', function(e) {
+            document.getElementById('parkingBoost-val').innerText = e.target.value + '%';
         });
 
         // Initialize Map
@@ -733,6 +823,9 @@
 
             try {
                 const absorptionRate = parseFloat(document.getElementById('absorption').value) / 100;
+                const unitSizeAssumption = parseFloat(document.getElementById('unitSizeAssumption').value) || 850;
+                const jobSizeAssumption = parseFloat(document.getElementById('jobSizeAssumption').value) || 1000;
+                const parkingBoostMultiplier = 1 + (parseFloat(document.getElementById('parkingBoostAssumption').value) || 20) / 100;
                 const targetDistrict = document.getElementById('districtFilter').value;
                 const applyTransitOnly = document.getElementById('transitOnly').checked;
                 const applyHistoricProtection = document.getElementById('protectHistoric').checked;
@@ -760,16 +853,19 @@
                         layer.setStyle({ opacity: 0, fillOpacity: 0, stroke: false }); return; 
                     }
 
-                    // Strict Data Extraction
-                    let existingUnits = 0, lotSqft = 0, bldgSqft = 0, propertyTag = "VACANT";
-                    for (let k in props) {
-                        let lower = k.toLowerCase();
-                        let val = props[k];
-                        if ((lower === 'units' || lower === 'existing_units' || lower.includes('unit')) && !isNaN(parseFloat(val))) existingUnits = parseFloat(val);
-                        if ((lower === 'lot_sqft' || lower === 'shape_area' || lower.includes('lot') || lower.includes('sqft')) && !isNaN(parseFloat(val))) lotSqft = parseFloat(val);
-                        if ((lower === 'building_sqft' || lower.includes('bldg') || lower.includes('build')) && !isNaN(parseFloat(val))) bldgSqft = parseFloat(val);
-                        if (lower === 'state_cd' || lower === 'state_code' || lower === 'statecode') propertyTag = String(val).trim().toUpperCase();
-                    }
+                    // Data extraction — exact field names verified against the actual parcel schema.
+                    // (Previously used loose substring matching against assumed field names like
+                    // 'building_sqft'/'lot_sqft' that don't exist in this dataset — it silently matched
+                    // the wrong fields or nothing at all, e.g. bldgSqft was never populated because no
+                    // field name contains "bldg" or "build". This is why every parcel appeared vacant.)
+                    const existingUnits = parseFloat(props.existing_units) || 0;
+                    let lotSqft = parseFloat(props.targetlotarea) || 0;
+                    const bldgSqft = parseFloat(props.footprint_sqft) || 0;
+                    // state_cd_clean is the real Texas CAD assessor code (e.g. "A1", "F2") when present.
+                    // It's null for a meaningful share of parcels in this dataset — use_desc is a plain-English
+                    // fallback/supplement that's populated far more often.
+                    const propertyTag = props.state_cd_clean ? String(props.state_cd_clean).trim().toUpperCase() : "";
+                    const useDesc = props.use_desc && props.use_desc !== 'Unknown' ? props.use_desc : null;
                     if (lotSqft <= 0) lotSqft = 6000; 
 
                     const isProtectedHistoric = (applyHistoricProtection && props._inHistoric);
@@ -827,9 +923,9 @@
                             }
                             else if (policy === 'midrise' && meetsUnderutilized) {
                                 const footprint = lotSqft * 0.5;
-                                const gross_u = Math.floor((footprint * (midriseFloors - 1)) / 850);
+                                const gross_u = Math.floor((footprint * (midriseFloors - 1)) / unitSizeAssumption);
                                 net_u = Math.max(0, gross_u - existingUnits);
-                                const net_j_candidate = Math.floor(footprint / 1000);
+                                const net_j_candidate = Math.floor(footprint / jobSizeAssumption);
                                 if (baseScenario === 'residential') {
                                     // residential: units only, never jobs
                                     net_j = 0;
@@ -869,14 +965,14 @@
                                     stackedUnits = Math.max(stackedUnits, lotSqft / 5000);
                                 }
                                 if (baseScenario !== 'residential') {
-                                    parkingJobBoost = (lotSqft * 0.5) / 1000;
+                                    parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
                                     stackedParkingJobBoost = parkingJobBoost;
                                 }
                             } else {
                                 // Parking boosts whatever use the scenario permits
-                                if (baseScenario !== 'commercial') { maxNetUnits *= 1.20; stackedUnits *= 1.20; }
+                                if (baseScenario !== 'commercial') { maxNetUnits *= parkingBoostMultiplier; stackedUnits *= parkingBoostMultiplier; }
                                 if (baseScenario !== 'residential') {
-                                    parkingJobBoost = (lotSqft * 0.5) / 1000;
+                                    parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
                                     stackedParkingJobBoost = parkingJobBoost;
                                 }
                             }
@@ -888,15 +984,15 @@
                         if (baseScenario === 'commercial') {
                             maxNetUnits = 0; stackedUnits = 0;
                             if (meetsUnderutilized) {
-                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
-                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
+                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
+                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
                             }
                         } else if (baseScenario === 'mixed') {
                             if (meetsUnderutilized) {
-                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
-                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
+                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
+                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 if (maxNetUnits === 0 && activePolicies.length === 0) {
-                                    maxNetUnits = (lotSqft * 0.25) / 850;
+                                    maxNetUnits = (lotSqft * 0.25) / unitSizeAssumption;
                                     stackedUnits = maxNetUnits;
                                 }
                             }
@@ -909,8 +1005,8 @@
                             // All other/vacant → pass through whatever the policy loop set
                             if (isCommercial) {
                                 if (meetsUnderutilized) {
-                                    maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / 1000);
-                                    stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / 1000);
+                                    maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
+                                    stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 }
                                 maxNetUnits = 0; stackedUnits = 0;
                             } else if (isResidential) {
@@ -996,20 +1092,29 @@
                     else if (finalUnits > 0) hbu = 'Residential';
                     else if (finalJobs > 0) hbu = 'Commercial';
                     else hbu = 'No change from existing use';
+                    // Flag parcels with zero data on every source field — this means the source file
+                    // never had existing-conditions data for this parcel (a data gap), not that the
+                    // parcel was actually verified vacant. District 1's data file currently has this
+                    // gap for 100% of its parcels — see README data quality notes.
+                    const noSourceData = (existingUnits === 0 && bldgSqft === 0 && !propertyTag && !useDesc);
+                    const dataGapNote = noSourceData
+                        ? '<br><span style="color:#b45309;">⚠ No existing-conditions data in source file for this parcel — "underutilized" here is a data gap, not a verified finding.</span>'
+                        : '';
                     layer.bindPopup(`
                         <div class="parcel-popup" style="font-size:12px; line-height:1.5;">
                           <strong>District ${props._district}</strong><br>
-                          Land use code: ${propertyTag}<br>
+                          Land use: ${useDesc ? useDesc : (propertyTag ? '(code only) ' + propertyTag : 'Not recorded in source data')}${useDesc && propertyTag ? ' (' + propertyTag + ')' : ''}<br>
                           Lot size: ${Math.round(lotSqft).toLocaleString()} sq ft<br>
                           Existing units: ${existingUnits}<br>
                           Underutilized: ${meetsUnderutilized ? 'Yes' : 'No'}<br>
                           Highest &amp; best use (this scenario): <strong>${hbu}</strong><br>
                           Policy applied: ${policyLabel}<br>
                           <span class="yield-line"><strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong></span>
-                          ${covenantNote}
+                          ${covenantNote}${dataGapNote}
                         </div>
                     `);
                 }); 
+
 
                 // Round data directly at the UI Output to keep probability math accurate
                 const unitsPct = Math.min(100, (totalNetUnits / 35000) * 100);

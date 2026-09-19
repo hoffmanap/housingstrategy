@@ -12,30 +12,60 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #3b82f6; 
-            --primary-hover: #2563eb;
-            --bg-color: #f8fafc;
+            /* Warm, desert-grounded palette — deliberately not generic SaaS blue */
+            --primary: #a8461f;
+            --primary-hover: #8a3717;
+            --bg-color: #faf7f2;
             --surface: #ffffff;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-            --housing: #2563eb;
-            --jobs: #d97706;
-            --success: #10b981;
+            --surface-alt: #f3ece0;
+            --text-main: #2a2117;
+            --text-muted: #7c7062;
+            --border: #e6ddd0;
+            --housing: #2d5d5e;
+            --housing-light: #a9c9c6;
+            --jobs: #b5541f;
+            --jobs-light: #e8bc93;
+            --mixed: #6b4a7a;
+            --success: #4d7c4a;
+            --font-display: 'Fraunces', Georgia, serif;
+            --font-ui: 'Inter', sans-serif;
         }
+        * { box-sizing: border-box; }
         body { 
-            font-family: 'Inter', sans-serif; 
+            font-family: var(--font-ui); 
             margin: 0; 
             padding: 0; 
             background-color: var(--bg-color); 
-            display: flex; 
+            display: flex;
+            flex-direction: column;
             height: 100vh; 
             overflow: hidden;
         }
+        h1, h2, h3 { font-family: var(--font-display); }
+
+        /* App Header */
+        #app-header {
+            flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 1002;
+        }
+        #app-header .title-block h1 {
+            font-size: 19px; font-weight: 600; margin: 0; color: var(--text-main); line-height: 1.2;
+        }
+        #app-header .title-block p {
+            font-size: 12.5px; color: var(--text-muted); margin: 2px 0 0 0; max-width: 560px; line-height: 1.4;
+        }
+        #methodology-btn {
+            background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border);
+            padding: 9px 16px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+            flex-shrink: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap;
+        }
+        #methodology-btn:hover { background: var(--surface-alt); border-color: var(--jobs-light); }
+
+        #main-row { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
         
         /* Banner Styles */
         #target-banner {
@@ -44,102 +74,113 @@
             left: 50%;
             transform: translateX(-50%);
             background: var(--surface);
-            padding: 15px 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 14px 26px 12px 26px;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(42,33,23,0.12);
             z-index: 1000;
-            text-align: center;
             border: 1px solid var(--border);
-            width: max-content;
+            width: 380px;
         }
-        .banner-title { font-weight: 700; font-size: 16px; color: var(--text-main); margin-bottom: 5px; }
-        .banner-stats { display: flex; gap: 30px; justify-content: center; font-size: 14px; color: var(--text-muted); }
-        .stat-group span { font-weight: 700; font-size: 18px; }
+        .banner-title { font-family: var(--font-ui); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; text-align: center; }
+        .progress-block { margin-bottom: 10px; }
+        .progress-block:last-of-type { margin-bottom: 0; }
+        .progress-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; font-weight: 600; color: var(--text-main); margin-bottom: 5px; }
+        .progress-label .pct { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+        .progress-track { position: relative; height: 9px; background: var(--surface-alt); border-radius: 5px; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+        .progress-fill.housing-fill { background: var(--housing); }
+        .progress-fill.jobs-fill { background: var(--jobs); }
+        .progress-fill.target-met { background: var(--success); }
+        .progress-tick { position: absolute; top: -3px; width: 2px; height: 15px; background: var(--text-main); opacity: 0.45; }
         .housing-text { color: var(--housing); }
         .jobs-text { color: var(--jobs); }
+        .range-note { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 8px; line-height: 1.4; }
 
         /* Sidebar Styles */
         #sidebar { 
-            width: 400px; 
+            width: 380px; 
             background: var(--surface); 
             border-right: 1px solid var(--border); 
             padding: 20px; 
             overflow-y: auto; 
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
             z-index: 1001; 
             display: flex;
             flex-direction: column;
         }
-        #sidebar h2 { margin-top: 0; font-size: 20px; }
-        .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; margin: 20px 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 5px;}
+        #sidebar h2 { margin: 0 0 2px 0; font-size: 20px; font-weight: 600; }
+        #sidebar .subhead { font-size: 12px; color: var(--text-muted); margin: 0 0 16px 0; }
+        .section-title { 
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; 
+            margin: 22px 0 10px 0; padding-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);
+        }
+        .section-title .chevron { font-size: 10px; transition: transform 0.2s; color: var(--text-muted); }
+        .section-title.collapsed .chevron { transform: rotate(-90deg); }
+        .collapsible-body { overflow: hidden; }
+        .collapsible-body.collapsed { display: none; }
         
         .control-group { margin-bottom: 12px; position: relative; }
         
         /* Tooltip Logic */
         .tooltip-container { position: relative; display: flex; align-items: center; cursor: pointer; }
         .info-icon { 
-            display: inline-block; width: 14px; height: 14px; background: #94a3b8; color: white; border-radius: 50%; text-align: center; font-size: 10px; line-height: 14px; margin-left: 8px; flex-shrink: 0;
+            display: inline-block; width: 14px; height: 14px; background: #b3a48f; color: white; border-radius: 50%; text-align: center; font-size: 10px; line-height: 14px; margin-left: 8px; flex-shrink: 0;
         }
         .tooltip { 
-            display: none; position: absolute; left: 25px; top: 20px; background: #334155; color: white; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 400; max-width: 220px; z-index: 2000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); line-height: 1.4;
+            display: none; position: absolute; left: 25px; top: 20px; background: var(--text-main); color: white; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 400; max-width: 220px; z-index: 2000; box-shadow: 0 4px 6px rgba(0,0,0,0.15); line-height: 1.4;
         }
         .info-icon:hover + .tooltip, .tooltip-container:hover .tooltip { display: block; }
         
         .checkbox-group { display: flex; align-items: center; margin-bottom: 10px; font-size: 13px; font-weight: 500; color: var(--text-main); }
-        .checkbox-group input[type="checkbox"] { margin-right: 8px; width: 15px; height: 15px; cursor: pointer; }
+        .checkbox-group input[type="checkbox"] { margin-right: 8px; width: 15px; height: 15px; cursor: pointer; accent-color: var(--primary); }
         
         label { display: flex; align-items: center; font-weight: 600; margin-bottom: 6px; color: var(--text-main); font-size: 13px; }
         select, input[type="range"] { 
-            width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; box-sizing: border-box; background: var(--bg-color);
+            width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; box-sizing: border-box; background: var(--bg-color); font-family: var(--font-ui); color: var(--text-main);
         }
+        input[type="range"] { accent-color: var(--primary); padding: 0; }
         
         button.run-btn { 
-            background: var(--primary); color: white; border: none; padding: 12px 15px; width: 100%; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 15px; font-size: 15px;
+            background: var(--primary); color: white; border: none; padding: 12px 15px; width: 100%; border-radius: 7px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 16px; font-size: 15px;
         }
         button.run-btn:hover { background: var(--primary-hover); }
 
         /* Table Styles */
-        table.district-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        .district-table th, .district-table td { padding: 8px; text-align: right; border-bottom: 1px solid var(--border); }
-        .district-table th { text-align: right; color: var(--text-muted); font-weight: 600; background: var(--bg-color); }
+        table.district-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .district-table th, .district-table td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+        .district-table th { text-align: right; color: var(--text-muted); font-weight: 600; background: var(--bg-color); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
         .district-table th:first-child, .district-table td:first-child { text-align: left; font-weight: 600; }
-        .district-table tr.total-row { font-weight: 700; font-size: 13px; background: #f1f5f9; }
+        .district-table tr.total-row { font-weight: 700; font-size: 13px; background: var(--surface-alt); }
 
-        #map { flex-grow: 1; height: 100vh; position: relative; z-index: 1;}
+        #map { flex-grow: 1; height: 100%; position: relative; z-index: 1;}
         
         /* Map Legend */
         .map-legend {
-            position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; font-size: 12px; border: 1px solid var(--border);
+            position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.96); padding: 14px 16px; border-radius: 10px; box-shadow: 0 4px 16px rgba(42,33,23,0.12); z-index: 1000; font-size: 12px; border: 1px solid var(--border);
         }
-        .legend-title { font-weight: 700; margin-bottom: 10px; color: var(--text-main); text-align: center;}
+        .legend-title { font-family: var(--font-display); font-weight: 600; margin-bottom: 10px; color: var(--text-main); text-align: center; font-size: 13px;}
         .legend-row { display: flex; align-items: center; margin-bottom: 6px; }
         .color-box { width: 16px; height: 16px; margin-right: 8px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);}
 
         /* Loading Overlay */
         #loading-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: 600; color: var(--primary); flex-direction: column;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(250,247,242,0.97); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: 600; color: var(--primary); flex-direction: column; font-family: var(--font-display);
         }
 
         /* Methodology Modal */
-        #methodology-btn {
-            background: var(--surface); color: var(--text-main); border: 1px solid var(--border);
-            padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
-            width: 100%; margin-top: 8px; margin-bottom: 4px; text-align: left; display: flex; align-items: center; gap: 6px;
-        }
-        #methodology-btn:hover { background: var(--bg-color); }
         #methodology-overlay {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15,23,42,0.55); z-index: 5000; align-items: center; justify-content: center;
+            background: rgba(42,33,23,0.55); z-index: 5000; align-items: center; justify-content: center;
         }
         #methodology-modal {
             background: var(--surface); width: min(720px, 90vw); max-height: 85vh; overflow-y: auto;
-            border-radius: 10px; padding: 28px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border-radius: 12px; padding: 28px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        #methodology-modal h2 { margin-top: 0; }
-        #methodology-modal h3 { font-size: 14px; margin: 20px 0 6px 0; color: var(--text-main); }
-        #methodology-modal p, #methodology-modal li { font-size: 13px; line-height: 1.55; color: #334155; }
+        #methodology-modal h2 { margin-top: 0; font-size: 24px; }
+        #methodology-modal h3 { font-family: var(--font-ui); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; margin: 20px 0 6px 0; color: var(--jobs); }
+        #methodology-modal p, #methodology-modal li { font-size: 13.5px; line-height: 1.6; color: #4a4136; }
         #methodology-modal .caveat {
-            background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px;
+            background: var(--surface-alt); border: 1px solid var(--border); border-left: 3px solid var(--jobs); border-radius: 8px; padding: 12px 14px;
             font-size: 12.5px; margin-top: 18px;
         }
         #methodology-close {
@@ -147,52 +188,61 @@
         }
 
         /* Parcel inspector popup */
-        .leaflet-popup-content { margin: 12px 14px; }
+        .leaflet-popup-content { margin: 12px 14px; font-family: var(--font-ui); }
+        .leaflet-popup-content-wrapper { border-radius: 8px; }
         .parcel-popup strong { color: var(--text-main); }
-
-        /* Range banner note */
-        .range-note {
-            font-size: 10.5px; color: var(--text-muted); text-align: center; margin-top: 6px; line-height: 1.4;
-        }
+        .parcel-popup .yield-line { font-family: var(--font-display); font-size: 14px; }
     </style>
 </head>
 <body>
 
     <div id="loading-overlay">
-        <div id="loading-text">Loading Citywide Data & Generating Map...</div>
+        <div id="loading-text">Loading Citywide Data &amp; Generating Map...</div>
     </div>
 
+    <div id="app-header">
+        <div class="title-block">
+            <h1>El Paso Housing Strategy Simulator</h1>
+            <p>Quantifying how zoning reform — ADUs, lot splits, missing middle, midrise, parking reform — could unlock new housing units and jobs, parcel by parcel.</p>
+        </div>
+        <button id="methodology-btn" onclick="document.getElementById('methodology-overlay').style.display='flex'">
+            ⓘ How this model works
+        </button>
+    </div>
+
+    <div id="main-row">
+
     <div id="target-banner">
-        <div class="banner-title">El Paso Citywide Targets</div>
-        <div class="banner-stats">
-            <div class="stat-group">Goal: <span class="housing-text">35,000</span> Units</div>
-            <div class="stat-group">Goal: <span class="jobs-text">55,000</span> Jobs</div>
+        <div class="banner-title">Progress Toward Citywide Targets</div>
+        <div class="progress-block">
+            <div class="progress-label">
+                <span class="housing-text">Housing</span>
+                <span id="pb-units-text">0 / 35,000 units</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill housing-fill" id="pb-units-fill" style="width:0%;"></div>
+                <div class="progress-tick" id="pb-units-tick" style="left:0%;"></div>
+            </div>
         </div>
-        <div style="border-top: 1px solid #e2e8f0; margin: 8px 0;"></div>
-        <div class="banner-stats" style="font-size: 13px;">
-            <div class="stat-group">Remaining: <span id="banner-rem-units" style="color: #64748b;">35,000</span></div>
-            <div class="stat-group">Remaining: <span id="banner-rem-jobs" style="color: #64748b;">55,000</span></div>
+        <div class="progress-block">
+            <div class="progress-label">
+                <span class="jobs-text">Jobs</span>
+                <span id="pb-jobs-text">0 / 55,000 jobs</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill jobs-fill" id="pb-jobs-fill" style="width:0%;"></div>
+                <div class="progress-tick" id="pb-jobs-tick" style="left:0%;"></div>
+            </div>
         </div>
-        <div class="banner-stats" style="font-size: 12px; margin-top: 4px;">
-            <div class="stat-group">Yield: <span id="banner-units" style="color: var(--housing);">0</span> units
-                <span style="color:#94a3b8;">(up to <span id="banner-units-hi">0</span> if policies stacked)</span></div>
-        </div>
-        <div class="banner-stats" style="font-size: 12px;">
-            <div class="stat-group">Yield: <span id="banner-jobs" style="color: var(--jobs);">0</span> jobs
-                <span style="color:#94a3b8;">(up to <span id="banner-jobs-hi">0</span> if policies stacked)</span></div>
-        </div>
-        <div class="range-note">Headline number = conservative (single highest-yielding policy per parcel).<br>
-            "Up to" = upper bound if every eligible policy stacked additively — see methodology.</div>
+        <div class="range-note">Bar = conservative estimate (highest single policy per parcel).<br>Tick mark = upper bound if every eligible policy stacked — see methodology.</div>
     </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>
+        <p class="subhead">Click any parcel on the map to see how its yield was calculated.</p>
 
-        <button id="methodology-btn" onclick="document.getElementById('methodology-overlay').style.display='flex'">
-            ⓘ How this model works — methodology &amp; caveats
-        </button>
-
-        <div class="section-title">Filters & Constraints</div>
+        <div class="section-title" onclick="toggleSection(this)">Filters &amp; Constraints <span class="chevron">▾</span></div>
+        <div class="collapsible-body">
         
         <div class="control-group">
             <label>Representative District</label>
@@ -224,6 +274,7 @@
             <span class="info-icon">i</span>
             <div class="tooltip">Detects commercial-only or single-family-only HOA restrictions and forcefully limits density algorithms.</div>
         </label>
+        </div>
         
         <div class="section-title">Policy Interventions</div>
         
@@ -251,7 +302,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="mansion_conversions"> Mansion Conversions
             <span class="info-icon">i</span>
-            <div class="tooltip">Allows large legacy homes to be internally converted into 4 to 8 individual apartments.</div>
+            <div class="tooltip">Allows a large legacy home to be internally converted into up to 4 individual apartments.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_4_8"> Missing Middle (4-8 Units)
@@ -283,9 +334,15 @@
         </label>
 
         <div class="control-group" style="margin-top: 15px;">
-            <label>Market Absorption Rate: <span id="absorption-val" style="margin-left: 5px; color: var(--primary);">10%</span></label>
-            <input type="range" id="absorption" min="5" max="25" value="10" step="1">
+            <label>Market Absorption Rate: <span id="absorption-val" style="margin-left: 5px; color: var(--primary);">8%</span></label>
+            <input type="range" id="absorption" min="0" max="100" value="8" step="1">
             <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">Realistic probability of development over 10 years</div>
+            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Why 8%? <span class="info-icon" style="margin-left:3px;">i</span></span>
+                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
+                    El Paso County averaged ~2,517 new housing permits/year, 2020–2024 (U.S. Census/FRED series BPPRIV048141) — down from ~3,100/yr (2013–2022) and ~4,300/yr (2003–2012). Most of that recent activity has been greenfield development outside city limits rather than redevelopment of already-built-up parcels, so the true infill-specific pace this model targets is smaller still. 8% is set conservatively, in that light — not a precise calibration against this tool's own eligible-parcel count.
+                </div>
+            </div>
         </div>
 
         <button class="run-btn" onclick="runSimulation()">Run Simulation</button>
@@ -368,28 +425,39 @@
             <div class="legend-title">Simulation Yields</div>
 
             <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Housing</div>
-            <div class="legend-row"><div class="color-box" style="background: #1e3a8a;"></div> High (&gt;16 units)</div>
-            <div class="legend-row"><div class="color-box" style="background: #2563eb;"></div> Medium (5–16 units)</div>
-            <div class="legend-row"><div class="color-box" style="background: #93c5fd;"></div> Low (1–4 units)</div>
+            <div class="legend-row"><div class="color-box" style="background: #16302f;"></div> High (&gt;16 units)</div>
+            <div class="legend-row"><div class="color-box" style="background: #2d5d5e;"></div> Medium (5–16 units)</div>
+            <div class="legend-row"><div class="color-box" style="background: #a9c9c6;"></div> Low (1–4 units)</div>
 
             <div style="height: 6px;"></div>
             <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Jobs</div>
-            <div class="legend-row"><div class="color-box" style="background: #78350f;"></div> High (&gt;10 jobs)</div>
-            <div class="legend-row"><div class="color-box" style="background: #d97706;"></div> Medium (3–10 jobs)</div>
-            <div class="legend-row"><div class="color-box" style="background: #fcd34d;"></div> Low (1–2 jobs)</div>
+            <div class="legend-row"><div class="color-box" style="background: #6b2c0f;"></div> High (&gt;10 jobs)</div>
+            <div class="legend-row"><div class="color-box" style="background: #b5541f;"></div> Medium (3–10 jobs)</div>
+            <div class="legend-row"><div class="color-box" style="background: #e8bc93;"></div> Low (1–2 jobs)</div>
 
             <div style="height: 6px;"></div>
             <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Mixed Use</div>
-            <div class="legend-row"><div class="color-box" style="background: #6b21a8;"></div> High density mixed</div>
-            <div class="legend-row"><div class="color-box" style="background: #9333ea;"></div> Medium density mixed</div>
-            <div class="legend-row"><div class="color-box" style="background: #d8b4fe;"></div> Low density mixed</div>
+            <div class="legend-row"><div class="color-box" style="background: #4a3355;"></div> High density mixed</div>
+            <div class="legend-row"><div class="color-box" style="background: #6b4a7a;"></div> Medium density mixed</div>
+            <div class="legend-row"><div class="color-box" style="background: #c7b3cf;"></div> Low density mixed</div>
 
             <div style="height: 6px;"></div>
-            <div class="legend-row"><div class="color-box" style="background: #cbd5e1;"></div> No Net Change</div>
+            <div class="legend-row"><div class="color-box" style="background: #d8cfc0;"></div> No Net Change</div>
         </div>
     </div>
 
+    </div> <!-- /#main-row -->
+
     <script>
+        // Collapsible sidebar sections (e.g. Filters & Constraints)
+        function toggleSection(headerEl) {
+            headerEl.classList.toggle('collapsed');
+            const body = headerEl.nextElementSibling;
+            if (body && body.classList.contains('collapsible-body')) {
+                body.classList.toggle('collapsed');
+            }
+        }
+
         // Update UI Text for the slider
         document.getElementById('absorption').addEventListener('input', function(e) {
             document.getElementById('absorption-val').innerText = e.target.value + '%';
@@ -397,10 +465,14 @@
 
         // Initialize Map
         const map = L.map('map', { preferCanvas: true }).setView([31.7619, -106.4850], 11);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
             maxZoom: 19,
-            subdomains: 'abc'
+            maxNativeZoom: 16
+        }).addTo(map);
+        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            maxNativeZoom: 16
         }).addTo(map);
 
         let geojsonLayer = null;
@@ -607,36 +679,36 @@
         }
 
         // Trivariate symbology:
-        //   Housing only  → Blues   (low: 1–4 units, medium: 5–16, high: >16)
-        //   Jobs only     → Oranges (low: 1–2 jobs,  medium: 3–10, high: >10)
-        //   Mixed use     → Purples (low/medium/high by combined total)
+        //   Housing only  → Teals     (low: 1–4 units, medium: 5–16, high: >16)
+        //   Jobs only     → Terracotta (low: 1–2 jobs,  medium: 3–10, high: >10)
+        //   Mixed use     → Plum      (low/medium/high by combined total)
         // Thresholds calibrated to actual policy yield ranges:
         //   ADU/lot splits = 1 unit; missing middle tops at 16; midrise scales with lot size
         //   Parking alone at 6,000 sqft lot ≈ 3 jobs; larger lots scale up proportionally
         function getTrivariateStyle(u, j) {
-            if (u < 0.5 && j < 0.5) return { fillColor: '#cbd5e1', color: '#94a3b8', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
+            if (u < 0.5 && j < 0.5) return { fillColor: '#d8cfc0', color: '#b3a790', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
 
             let fColor, sColor;
             const isMixed = u >= 0.5 && j >= 0.5;
 
             if (isMixed) {
-                // Mixed use — purples, graduated by combined total
+                // Mixed use — plum, graduated by combined total
                 const total = u + j;
-                if      (total > 20) { fColor = '#6b21a8'; sColor = '#4a1272'; }
-                else if (total > 8)  { fColor = '#9333ea'; sColor = '#7e22ce'; }
-                else                 { fColor = '#d8b4fe'; sColor = '#a855f7'; }
+                if      (total > 20) { fColor = '#4a3355'; sColor = '#33223d'; }
+                else if (total > 8)  { fColor = '#6b4a7a'; sColor = '#573d64'; }
+                else                 { fColor = '#c7b3cf'; sColor = '#a189ac'; }
 
             } else if (u >= j) {
-                // Housing dominant — blues, graduated by unit count
-                if      (u > 16) { fColor = '#1e3a8a'; sColor = '#172554'; }
-                else if (u > 4)  { fColor = '#2563eb'; sColor = '#1d4ed8'; }
-                else             { fColor = '#93c5fd'; sColor = '#3b82f6'; }
+                // Housing dominant — teals, graduated by unit count
+                if      (u > 16) { fColor = '#16302f'; sColor = '#0d1f1e'; }
+                else if (u > 4)  { fColor = '#2d5d5e'; sColor = '#234848'; }
+                else             { fColor = '#a9c9c6'; sColor = '#7fa8a3'; }
 
             } else {
-                // Jobs dominant — oranges/ambers, graduated by job count
-                if      (j > 10) { fColor = '#78350f'; sColor = '#451a03'; }
-                else if (j > 2)  { fColor = '#d97706'; sColor = '#b45309'; }
-                else             { fColor = '#fcd34d'; sColor = '#f59e0b'; }
+                // Jobs dominant — terracotta, graduated by job count
+                if      (j > 10) { fColor = '#6b2c0f'; sColor = '#4a1e0a'; }
+                else if (j > 2)  { fColor = '#b5541f'; sColor = '#8a3717'; }
+                else             { fColor = '#e8bc93'; sColor = '#d99e69'; }
             }
 
             return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9, weight: 0.5 };
@@ -689,6 +761,7 @@
 
                     const isProtectedHistoric = (applyHistoricProtection && props._inHistoric);
                     const isOutsideTransit = (applyTransitOnly && !props._inTransit);
+                    let meetsUnderutilized = false;
 
                     // FIX 1: Removed the "activePolicies.length > 0" requirement from this main block
                     // This allows Base Scenarios to calculate independently
@@ -706,7 +779,7 @@
                         
                         const isUpzoning = (baseScenario === 'mixed' || baseScenario === 'commercial');
                         const coverageThreshold = (isUpzoning || isCommercial) ? 0.45 : 0.15;
-                        const meetsUnderutilized = isVacant || (bldgRatio < coverageThreshold) || (existingUnits === 0 && bldgSqft === 0);
+                        meetsUnderutilized = isVacant || (bldgRatio < coverageThreshold) || (existingUnits === 0 && bldgSqft === 0);
 
                         let maxNetUnits = 0;
                         let maxNetJobs = 0;
@@ -725,7 +798,7 @@
                                 net_u = 1; ruleLabel = 'Lot Split';
                             }
                             else if (policy === 'mansion_conversions' && meetsUnderutilized) {
-                                let gross = (lotSqft > 6000) ? 8 : (lotSqft > 4000 ? 4 : 0);
+                                let gross = (lotSqft >= 4000) ? 4 : 0;
                                 net_u = Math.max(0, gross - existingUnits);
                                 ruleLabel = 'Mansion Conversion';
                             }
@@ -912,23 +985,32 @@
                           Existing units: ${existingUnits}<br>
                           Underutilized: ${meetsUnderutilized ? 'Yes' : 'No'}<br>
                           Rule applied: ${ruleNote || (meetsUnderutilized ? 'Base scenario floor' : '—')}<br>
-                          <strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong>
+                          <span class="yield-line"><strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong></span>
                           ${covenantNote}
                         </div>
                     `);
                 }); 
 
                 // Round data directly at the UI Output to keep probability math accurate
-                document.getElementById('banner-rem-units').innerText = Math.max(0, Math.round(35000 - totalNetUnits)).toLocaleString();
-                document.getElementById('banner-rem-jobs').innerText = Math.max(0, Math.round(55000 - totalNetJobs)).toLocaleString();
-                
-                document.getElementById('banner-rem-units').style.color = (totalNetUnits >= 35000) ? 'var(--success)' : '#64748b';
-                document.getElementById('banner-rem-jobs').style.color = (totalNetJobs >= 55000) ? 'var(--success)' : '#64748b';
+                const unitsPct = Math.min(100, (totalNetUnits / 35000) * 100);
+                const jobsPct = Math.min(100, (totalNetJobs / 55000) * 100);
+                const unitsTickPct = Math.min(100, (Math.max(totalNetUnits, totalStackedUnits) / 35000) * 100);
+                const jobsTickPct = Math.min(100, (Math.max(totalNetJobs, totalStackedJobs) / 55000) * 100);
 
-                document.getElementById('banner-units').innerText = Math.round(totalNetUnits).toLocaleString();
-                document.getElementById('banner-jobs').innerText = Math.round(totalNetJobs).toLocaleString();
-                document.getElementById('banner-units-hi').innerText = Math.round(Math.max(totalNetUnits, totalStackedUnits)).toLocaleString();
-                document.getElementById('banner-jobs-hi').innerText = Math.round(Math.max(totalNetJobs, totalStackedJobs)).toLocaleString();
+                const unitsFill = document.getElementById('pb-units-fill');
+                const jobsFill = document.getElementById('pb-jobs-fill');
+                unitsFill.style.width = unitsPct + '%';
+                jobsFill.style.width = jobsPct + '%';
+                unitsFill.classList.toggle('target-met', totalNetUnits >= 35000);
+                jobsFill.classList.toggle('target-met', totalNetJobs >= 55000);
+
+                document.getElementById('pb-units-tick').style.left = unitsTickPct + '%';
+                document.getElementById('pb-jobs-tick').style.left = jobsTickPct + '%';
+
+                document.getElementById('pb-units-text').innerHTML =
+                    `${Math.round(totalNetUnits).toLocaleString()} / 35,000 <span class="pct">(${unitsPct.toFixed(0)}%)</span>`;
+                document.getElementById('pb-jobs-text').innerHTML =
+                    `${Math.round(totalNetJobs).toLocaleString()} / 55,000 <span class="pct">(${jobsPct.toFixed(0)}%)</span>`;
 
                 let tableHTML = "";
                 for (let i = 1; i <= 8; i++) {

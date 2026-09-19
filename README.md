@@ -75,10 +75,10 @@ This is the one number in the model we could ground in actual regional data rath
 
 ## Base Development Scenarios
 
-The base scenario sets the fundamental land use character assumed for redevelopment. It determines whether a parcel's yield is counted as housing, jobs, or both, and provides a floor yield calculation for parcels that are eligible but have no active policy intervention selected.
+The base scenario sets the fundamental land use character assumed for redevelopment. It determines whether a parcel's yield is counted as housing, jobs, or both.
 
 ### Current Use
-Parcels are assumed to redevelop consistent with their existing use as identified by the Texas assessor state code (`state_cd`). Residentially-classified parcels (state codes beginning with A or B) contribute housing yield only. Commercially or industrially-classified parcels (state codes F1 — general commercial, and F2 — industrial) contribute jobs only, calculated as 50% lot coverage at 1,000 square feet per job. No cross-use yield is generated.
+Parcels are assumed to redevelop consistent with their existing use as identified by the Texas assessor state code (`state_cd`). Residentially-classified parcels (state codes beginning with A or B) contribute housing yield only. Commercially or industrially-classified parcels (state codes F1 — general commercial, and F2 — industrial) contribute jobs only, calculated as 50% lot coverage at 1,000 square feet per job (default; adjustable). **This job yield only applies when at least one policy intervention is active.** With Current Use selected and no interventions checked, the model shows zero net change citywide — a true do-nothing baseline to compare reforms against, not a floor that fires on its own. (An earlier version of this tool applied the commercial job yield unconditionally under Current Use, which made "no intervention selected" misleadingly show large citywide job totals — e.g. tens of thousands of jobs with nothing checked. That's fixed.)
 
 ### All Residential
 All eligible parcels are assumed to redevelop as residential. Jobs are hard-zeroed across all parcels in this scenario — no policy intervention (except eliminate parking minimums, which is treated as an infrastructure policy; see below) generates jobs when this scenario is active.

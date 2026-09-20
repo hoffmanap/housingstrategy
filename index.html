@@ -49,7 +49,7 @@
 
         /* App Header */
         #app-header {
-            flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+            flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
             padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 1002;
         }
         #app-header .title-block h1 {
@@ -66,35 +66,27 @@
         #methodology-btn:hover { background: var(--surface-alt); border-color: var(--jobs-light); }
 
         #main-row { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
-        
-        /* Banner Styles */
-        #target-banner {
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--surface);
-            padding: 14px 26px 12px 26px;
-            border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(42,33,23,0.12);
-            z-index: 1000;
-            border: 1px solid var(--border);
-            width: 380px;
-        }
-        .banner-title { font-family: var(--font-ui); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; text-align: center; }
-        .progress-block { margin-bottom: 10px; }
-        .progress-block:last-of-type { margin-bottom: 0; }
-        .progress-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; font-weight: 600; color: var(--text-main); margin-bottom: 5px; }
-        .progress-label .pct { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
-        .progress-track { position: relative; height: 9px; background: var(--surface-alt); border-radius: 5px; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+
+        /* Compact banner, now inside the header */
+        #target-banner-compact { display: flex; align-items: center; gap: 22px; flex-shrink: 0; padding: 0 18px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+        .progress-block-compact { width: 148px; }
+        .progress-label-compact { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+        .progress-label-compact span:last-child { color: var(--text-main); font-weight: 600; }
+        .progress-track { position: relative; height: 7px; background: var(--surface-alt); border-radius: 4px; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
         .progress-fill.housing-fill { background: var(--housing); }
         .progress-fill.jobs-fill { background: var(--jobs); }
         .progress-fill.target-met { background: var(--success); }
-        .progress-tick { position: absolute; top: -3px; width: 2px; height: 15px; background: var(--text-main); opacity: 0.45; }
+        .progress-tick { position: absolute; top: -2px; width: 2px; height: 11px; background: var(--text-main); opacity: 0.45; }
         .housing-text { color: var(--housing); }
         .jobs-text { color: var(--jobs); }
-        .range-note { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 8px; line-height: 1.4; }
+
+        /* Slim summary row below the header */
+        #summary-bar {
+            flex: 0 0 auto; padding: 6px 24px; background: var(--surface-alt);
+            border-bottom: 1px solid var(--border); text-align: center;
+        }
+        #summary-line { font-size: 11.5px; color: var(--text-main); line-height: 1.4; }
 
         /* Sidebar Styles */
         #sidebar { 
@@ -214,38 +206,43 @@
             <h1>El Paso Housing Strategy Simulator</h1>
             <p>Quantifying how zoning reform — ADUs, lot splits, missing middle, midrise, parking reform — could unlock new housing units and jobs, parcel by parcel.</p>
         </div>
+
+        <div id="target-banner-compact">
+            <div class="progress-block-compact">
+                <div class="progress-label-compact">
+                    <span class="housing-text">Housing</span>
+                    <span id="pb-units-text">0 / 35,000</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill housing-fill" id="pb-units-fill" style="width:0%;"></div>
+                    <div class="progress-tick" id="pb-units-tick" style="left:0%;"></div>
+                </div>
+            </div>
+            <div class="progress-block-compact">
+                <div class="progress-label-compact">
+                    <span class="jobs-text">Jobs</span>
+                    <span id="pb-jobs-text">0 / 55,000</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill jobs-fill" id="pb-jobs-fill" style="width:0%;"></div>
+                    <div class="progress-tick" id="pb-jobs-tick" style="left:0%;"></div>
+                </div>
+            </div>
+            <div class="tooltip-container">
+                <span class="info-icon">i</span>
+                <div class="tooltip" style="left: auto; right: 0; top: 20px;">Bar = conservative estimate (highest single policy per parcel). Tick mark = upper bound if every eligible policy stacked — see methodology.</div>
+            </div>
+        </div>
+
         <button id="methodology-btn" onclick="document.getElementById('methodology-overlay').style.display='flex'">
             ⓘ How this model works
         </button>
     </div>
+    <div id="summary-bar">
+        <div id="summary-line"></div>
+    </div>
 
     <div id="main-row">
-
-    <div id="target-banner">
-        <div class="banner-title">Progress Toward Citywide Targets</div>
-        <div class="progress-block">
-            <div class="progress-label">
-                <span class="housing-text">Housing</span>
-                <span id="pb-units-text">0 / 35,000 units</span>
-            </div>
-            <div class="progress-track">
-                <div class="progress-fill housing-fill" id="pb-units-fill" style="width:0%;"></div>
-                <div class="progress-tick" id="pb-units-tick" style="left:0%;"></div>
-            </div>
-        </div>
-        <div class="progress-block">
-            <div class="progress-label">
-                <span class="jobs-text">Jobs</span>
-                <span id="pb-jobs-text">0 / 55,000 jobs</span>
-            </div>
-            <div class="progress-track">
-                <div class="progress-fill jobs-fill" id="pb-jobs-fill" style="width:0%;"></div>
-                <div class="progress-tick" id="pb-jobs-tick" style="left:0%;"></div>
-            </div>
-        </div>
-        <div id="summary-line" style="font-size: 11.5px; color: var(--text-main); text-align: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.4;"></div>
-        <div class="range-note">Bar = conservative estimate (highest single policy per parcel).<br>Tick mark = upper bound if every eligible policy stacked — see methodology.</div>
-    </div>
 
     <div id="sidebar">
         <h2>Housing Strategy</h2>

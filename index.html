@@ -328,24 +328,24 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_4_8"> Missing Middle (4-8 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">Upzones qualifying lots to allow townhomes, quadplexes, or small 8-plex structures.</div>
+            <div class="tooltip">A density bonus for single-family/duplex/triplex parcels: 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 units. Not eligible on vacant land or parcels already at 4+ units.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_9_16"> Missing Middle (9-16 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">Upzones large qualifying lots to allow small-scale apartment buildings up to 16 units.</div>
+            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 units instead of 8 — meaningfully larger on bigger single-family/duplex/triplex lots with smaller unit sizes.</div>
         </label>
         
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="midrise"> Allow Midrise Development
             <select id="midrise_floors" style="width: 70px; margin-left: auto; padding: 4px; font-size: 12px;">
-                <option value="2">2 Fl</option>
-                <option value="3">3 Fl</option>
-                <option value="4">4 Fl</option>
-                <option value="5" selected>5 Fl</option>
+                <option value="4" selected>4 Fl</option>
+                <option value="5">5 Fl</option>
+                <option value="6">6 Fl</option>
+                <option value="8">8 Fl</option>
             </select>
             <span class="info-icon">i</span>
-            <div class="tooltip">Permits high-density mixed-use development on commercial/underutilized land. Jobs on floor 1, housing above.</div>
+            <div class="tooltip">Permits high-density mixed-use development. Floor count starts at 4 — SB840's mandated minimum wherever this density is allowed. Jobs on floor 1, housing above.</div>
         </label>
 
         <label class="checkbox-group tooltip-container">
@@ -353,6 +353,16 @@
             <span class="info-icon">i</span>
             <div class="tooltip">Boosts achievable density by 20% on selected interventions by freeing up parking space for housing. Based on research (Shoup) showing a parking space + aisle typically eats 300-400 sq ft of buildable land — 20% is this model's own moderate estimate of the recovered yield, not a precise finding for El Paso. Full explanation in "How this model works."</div>
         </label>
+
+        <div style="margin-top: 16px; padding: 10px 12px; border: 1px dashed var(--jobs-light); border-radius: 8px; background: #fdf6ee;">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jobs); font-weight: 700; margin-bottom: 6px;">Last Resort — Not a Preferred Outcome</div>
+            <label class="checkbox-group tooltip-container" style="margin-bottom: 4px;">
+                <input type="checkbox" class="policy-cb" value="sb840_baseline"> SB840 Baseline (Commercial &amp; 4+ Unit Parcels)
+                <span class="info-icon">i</span>
+                <div class="tooltip">Texas SB840's flat, blunt mandate: commercial parcels, vacant land, and parcels already at 4+ units must be allowed 4 floors and the citywide max density (145 units/acre) — the city has no discretion to restrict this. This is what happens by default if nothing more tailored is done. It is intentionally excluded from "Load Full Reform Package" — the other interventions exist precisely to avoid needing this blunt instrument.</div>
+            </label>
+            <p style="font-size: 10.5px; color: var(--text-muted); margin: 4px 0 0 0; line-height: 1.4;">Shows the out-of-scale development SB840 forces absent local action — the reason the interventions above are preferable, not an alternative to them.</p>
+        </div>
 
         <div class="control-group" style="margin-top: 15px;">
             <label>Market Absorption Rate: <span id="absorption-val" style="margin-left: 5px; color: var(--primary);">8%</span></label>
@@ -508,6 +518,37 @@
         adjustable</strong> in "Model Assumptions (Advanced)" in the sidebar, each with
         guidance on which direction fits your expectations for what gets built.</p>
 
+        <h3>Why Missing Middle is capped at 8 or 16 units, and only on 1-3 unit parcels</h3>
+        <p>This follows Texas SB840. The law requires that any zone permitting more than 3 units
+        must allow 4 floors and the city's maximum density (145 units/acre) outright — a state
+        mandate the city cannot restrict. The one exception is a "workaround": on parcels that
+        currently have 1–3 existing units (single-family, duplex, or triplex), the city may impose
+        additional local limits in exchange for offering a density bonus. That's what the two
+        Missing Middle checkboxes model — a bonus program specifically for those parcels, capped at
+        8 or 16 additional units depending on which is selected, using a reduced 35 ft height limit
+        (≈3 floors) rather than SB840's full 4-floor mandate.</p>
+        <p>Everything else — commercial parcels, vacant land, and anything already at 4+ units (a
+        quadplex or larger, or plainly described as multifamily/multiplex) — isn't eligible for the
+        Missing Middle bonus, because it isn't the 1-3 unit parcel that bonus is offered to. Instead,
+        <strong>SB840's flat mandate applies directly</strong>, modeled as its own "SB840 Baseline"
+        checkbox: 4 floors (the state's actual minimum, not the workaround's reduced height) at the
+        same coverage and unit-size approach. Midrise's floor selector also starts at 4 for the same
+        reason — SB840 sets 4 floors as the floor, not a suggestion, wherever this density applies.</p>
+        <p><strong>SB840 Baseline should be read as a last resort, not a recommended outcome.</strong>
+        Its numbers are intentionally large and out of scale with typical neighborhood character —
+        that scale is the point. It illustrates what happens by default, everywhere it applies,
+        absent any more tailored local action: a blunt, one-size-fits-all mandate rather than the
+        kind of context-sensitive infill the other interventions represent. It's deliberately
+        excluded from "Load Full Reform Package" and kept visually separate in the sidebar for this
+        reason — the other policies exist precisely so this blunt instrument doesn't have to be the
+        only path to added density.</p>
+        <p>Building size in both calculations is driven by unit size (lot area × coverage × floors,
+        divided by an assumed unit size) rather than lot width. Dan Parolek's <em>Missing Middle
+        Housing</em> argues lot width should drive massing instead, which better reflects
+        street-facing character — but this dataset has lot area, not lot width, and approximating
+        width from parcel geometry is unreliable for irregular shapes. This is a real known
+        limitation, not a considered rejection of Parolek's approach.</p>
+
         <h3>Geographic constraints</h3>
         <p>Historic district protection, transit-corridor-only filtering, and recorded deed
         restrictions can each be toggled. Deed restrictions, when enabled, are applied as a
@@ -639,12 +680,19 @@
 
         // Preset scenarios — reproducible headline configurations
         function loadPreset(kind) {
-            const policyIds = ['adu', 'lot_splits', 'mansion_conversions', 'missing_middle_4_8', 'missing_middle_9_16', 'midrise', 'no_parking'];
+            // The preferred, tailored interventions — SB840 Baseline is deliberately excluded from
+            // "Full Reform Package": it represents the blunt, out-of-scale outcome these interventions
+            // exist to avoid, not one more policy to bundle alongside them.
+            const reformPolicyIds = ['adu', 'lot_splits', 'mansion_conversions', 'missing_middle_4_8', 'missing_middle_9_16', 'midrise', 'no_parking'];
             const checkOn = (kind === 'full');
-            policyIds.forEach(id => {
+            reformPolicyIds.forEach(id => {
                 const cb = document.querySelector(`.policy-cb[value="${id}"]`);
                 if (cb) cb.checked = checkOn;
             });
+            // Always explicitly off on either preset — never part of the recommended package,
+            // and Reset should clear it if the user had checked it manually.
+            const sb840cb = document.querySelector('.policy-cb[value="sb840_baseline"]');
+            if (sb840cb) sb840cb.checked = false;
             document.getElementById('baseScenario').value = 'current';
 
             // Reset assumptions to their documented defaults so this is a reproducible,
@@ -959,12 +1007,30 @@
                 const unitSizeAssumption = parseFloat(document.getElementById('unitSizeAssumption').value) || 850;
                 const jobSizeAssumption = parseFloat(document.getElementById('jobSizeAssumption').value) || 1000;
                 const parkingBoostMultiplier = 1 + (parseFloat(document.getElementById('parkingBoostAssumption').value) || 20) / 100;
+
+                // Formula constants — documented assumptions, not sourced to El Paso-specific data
+                // (see README / methodology modal for full reasoning on each).
+                const MIN_SPLIT_LOT_SIZE = 3500;       // sq ft — a lot split must leave two buildable halves
+                const MANSION_CONVERSION_EFFICIENCY = 0.85; // fraction of interior area usable after conversion (rest lost to hallways/common areas)
+                const CITYWIDE_DENSITY_PER_ACRE = 145;  // units/acre — citywide density standard for Missing Middle and Midrise
+                const SQFT_PER_ACRE = 43560;
+                const PARKING_SQFT_PER_SPACE = 300;     // sq ft consumed per required off-street parking space, at an assumed 1 space/unit
+
+                // Missing Middle, per SB840: on parcels with 1-3 existing units (single-family,
+                // duplex, triplex), the city can impose additional limits via a "workaround" —
+                // capped at 35 ft height (~3 floors at a standard ~11.7 ft floor-to-floor height,
+                // consistent with the Missing Middle typology's 3-floor cap) with a density bonus.
+                // On every other parcel (vacant, or already 4+ units), SB840 mandates the citywide
+                // max density (145/acre) outright — the city has no discretion to limit it further.
+                const MISSING_MIDDLE_WORKAROUND_FLOORS = 3;
+                const MISSING_MIDDLE_COVERAGE = 0.5; // consistent with the coverage assumption used elsewhere in the model
+                const SB840_MANDATED_FLOORS = 4; // the state-mandated minimum wherever >3 units are allowed — applies to the flat SB840 baseline and sets Midrise's floor-count minimum
                 const targetDistrict = document.getElementById('districtFilter').value;
                 const applyTransitOnly = document.getElementById('transitOnly').checked;
                 const applyHistoricProtection = document.getElementById('protectHistoric').checked;
                 const applyCovenants = document.getElementById('applyDeedRestrictions').checked;
                 const baseScenario = document.getElementById('baseScenario').value;
-                const midriseFloors = parseInt(document.getElementById('midrise_floors').value) || 5;
+                const midriseFloors = Math.max(SB840_MANDATED_FLOORS, parseInt(document.getElementById('midrise_floors').value) || 5);
 
                 const activePolicies = Array.from(document.querySelectorAll('.policy-cb:checked')).map(cb => cb.value);
                 const hasParkingBoost = activePolicies.includes('no_parking');
@@ -994,6 +1060,7 @@
                     const existingUnits = parseFloat(props.existing_units) || 0;
                     let lotSqft = parseFloat(props.targetlotarea) || 0;
                     const bldgSqft = parseFloat(props.footprint_sqft) || 0;
+                    const interiorSqft = parseFloat(props.interior_sqft) || 0;
                     // state_cd_clean is the real Texas CAD assessor code (e.g. "A1", "F2") when present.
                     // It's null for a meaningful share of parcels in this dataset — use_desc is a plain-English
                     // fallback/supplement that's populated far more often.
@@ -1043,32 +1110,102 @@
 
                         activePolicies.forEach(policy => {
                             let net_u = 0, net_j = 0, ruleLabel = null;
-                            
-                            if (policy === 'adu' && existingUnits > 0 && lotSqft >= 3000) {
+
+                            // --- ADU: any existing single-family home (exactly 1 existing unit)
+                            // can add one accessory unit. No lot-size minimum — a real ADU-enabling
+                            // ordinance applies regardless of lot size; buildability at the margins
+                            // is the homeowner's problem, not a citywide capacity assumption.
+                            if (policy === 'adu' && existingUnits === 1) {
                                 net_u = 1; ruleLabel = 'ADU';
-                            } 
-                            else if (policy === 'lot_splits' && lotSqft >= 7000 && meetsUnderutilized) {
-                                net_u = 1; ruleLabel = 'Lot Split';
                             }
-                            else if (policy === 'mansion_conversions' && meetsUnderutilized) {
-                                let gross = (lotSqft >= 4000) ? 4 : 0;
-                                net_u = Math.max(0, gross - existingUnits);
-                                ruleLabel = 'Mansion Conversion';
+
+                            // --- Lot Splits: eligible only if the lot is at least double the minimum
+                            // buildable lot size (3,500 sq ft — a documented assumption, not derived
+                            // from El Paso's actual subdivision code). The lot becomes two buildable
+                            // lots; net yield subtracts whatever's already there.
+                            else if (policy === 'lot_splits' && lotSqft >= (MIN_SPLIT_LOT_SIZE * 2) && meetsUnderutilized) {
+                                net_u = Math.max(0, 2 - existingUnits);
+                                ruleLabel = 'Lot Split';
                             }
-                            else if (policy === 'missing_middle_4_8' && meetsUnderutilized) {
-                                let gross = (lotSqft > 7000) ? 8 : (lotSqft > 4000 ? 4 : 0);
-                                net_u = Math.max(0, gross - existingUnits);
-                                ruleLabel = 'Missing Middle (4-8)';
+
+                            // --- Mansion Conversion: now tied to the ACTUAL existing structure,
+                            // not a flat unit count keyed off lot size. Usable interior area (favoring
+                            // interior_sqft — total floor area across stories — over footprint_sqft,
+                            // which only covers the ground floor) is discounted 15% for hallways/
+                            // common areas lost in a conversion, then divided by the adjustable unit
+                            // size assumption. Requires a real recorded structure to convert — a
+                            // vacant or data-gap parcel has nothing to convert.
+                            else if (policy === 'mansion_conversions') {
+                                const usableInterior = (interiorSqft > 0 ? interiorSqft : bldgSqft) * MANSION_CONVERSION_EFFICIENCY;
+                                if (usableInterior > 0) {
+                                    const gross = Math.floor(usableInterior / unitSizeAssumption);
+                                    net_u = Math.max(0, gross - existingUnits);
+                                    ruleLabel = 'Mansion Conversion';
+                                }
                             }
-                            else if (policy === 'missing_middle_9_16' && meetsUnderutilized) {
-                                let gross = (lotSqft > 10000) ? 16 : (lotSqft > 6000 ? 9 : 0);
-                                net_u = Math.max(0, gross - existingUnits);
-                                ruleLabel = 'Missing Middle (9-16)';
+
+                            // --- Missing Middle (both tiers): a density-bonus program offered to
+                            // parcels with 1-3 existing units (single-family, duplex, triplex) per
+                            // SB840's "workaround" — 35 ft height (~3 floors), 50% coverage, divided
+                            // by the adjustable unit size assumption gives the buildable envelope's
+                            // total unit count. Existing units are subtracted FIRST to get the
+                            // envelope's additional capacity, THEN that's capped at 8 or 16 — so the
+                            // cap represents the bonus granted (up to and including 8, or up to and
+                            // including 16 additional units), not a gross count reduced afterward.
+                            // Not eligible on vacant land or parcels already at 4+ units — those
+                            // aren't the 1-3 unit parcels this bonus program is offered to.
+                            else if (policy === 'missing_middle_4_8' && meetsUnderutilized && existingUnits >= 1 && existingUnits <= 3) {
+                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
+                                const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
+                                net_u = Math.min(8, additionalCapacity);
+                                ruleLabel = 'Missing Middle (max 8)';
                             }
+                            else if (policy === 'missing_middle_9_16' && meetsUnderutilized && existingUnits >= 1 && existingUnits <= 3) {
+                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
+                                const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
+                                net_u = Math.min(16, additionalCapacity);
+                                ruleLabel = 'Missing Middle (max 16)';
+                            }
+
+                            // --- SB840 Baseline: the flat state mandate for everything that ISN'T
+                            // eligible for the Missing Middle bonus program above — commercial parcels,
+                            // vacant land, and anything already at 4+ units (quadplex or larger, or
+                            // plainly multifamily/multiplex). SB840 requires these be allowed 4 floors
+                            // (the state-mandated minimum, not the workaround's reduced 35 ft/~3 floors)
+                            // and the citywide max density. Applying the same minimum-unit-size approach
+                            // as Missing Middle, just at the state's actual mandated floor count.
+                            else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= 3)) {
+                                const eligible = isCommercial || existingUnits === 0 || existingUnits > 3;
+                                if (eligible) {
+                                    const gross = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption);
+                                    net_u = Math.max(0, gross - existingUnits);
+                                    ruleLabel = 'SB840 Baseline';
+                                }
+                            }
+
+
+                            // --- Midrise / Vertical Mixed Use: residential unit count now uses the
+                            // citywide density standard (145 units/acre) scaled by the number of floors
+                            // selected, representing the full building envelope. If off-street parking
+                            // is still required (the "Eliminate Parking Minimums" policy is NOT active),
+                            // the achievable count is reduced by however much land that parking would
+                            // consume — 300 sq ft/space, assuming the standard 1 space per unit ratio
+                            // (this ratio is our assumption; only the sq-ft-per-space figure was given).
+                            // With parking eliminated, the full envelope is available for housing.
                             else if (policy === 'midrise' && meetsUnderutilized) {
-                                const footprint = lotSqft * 0.5;
-                                const gross_u = Math.floor((footprint * (midriseFloors - 1)) / unitSizeAssumption);
+                                const acres = lotSqft / SQFT_PER_ACRE;
+                                const parkingEliminated = activePolicies.includes('no_parking');
+                                let gross_u = Math.floor(CITYWIDE_DENSITY_PER_ACRE * acres * midriseFloors);
+                                if (!parkingEliminated && gross_u > 0) {
+                                    const parkingAreaNeeded = gross_u * PARKING_SQFT_PER_SPACE;
+                                    const remainingLandFraction = Math.max(0, (lotSqft - parkingAreaNeeded) / lotSqft);
+                                    gross_u = Math.floor(gross_u * remainingLandFraction);
+                                }
                                 net_u = Math.max(0, gross_u - existingUnits);
+
+                                // Ground-floor commercial jobs — unchanged, independent of the
+                                // residential envelope calculation above.
+                                const footprint = lotSqft * 0.5;
                                 const net_j_candidate = Math.floor(footprint / jobSizeAssumption);
                                 if (baseScenario === 'residential') {
                                     // residential: units only, never jobs
@@ -1143,10 +1280,14 @@
                             if (meetsUnderutilized) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                                if (maxNetUnits === 0 && activePolicies.length === 0) {
-                                    maxNetUnits = (lotSqft * 0.25) / unitSizeAssumption;
-                                    stackedUnits = maxNetUnits;
-                                }
+                                // Floor applies as a lower bound regardless of which policies are active —
+                                // previously this only applied when NO policy was checked at all, so an
+                                // active policy that happened to produce 0 units on this specific parcel
+                                // (e.g. Missing Middle on a lot too small for its tier) would silently
+                                // disable the floor and reduce the total below what zero policies gave.
+                                const mixedUnitFloor = (lotSqft * 0.25) / unitSizeAssumption;
+                                maxNetUnits = Math.max(maxNetUnits, mixedUnitFloor);
+                                stackedUnits = Math.max(stackedUnits, mixedUnitFloor);
                             }
                         } else if (baseScenario === 'residential') {
                             maxNetJobs = 0; stackedJobs = 0; // zeroes scenario/policy jobs; parking boost re-added below
@@ -1331,17 +1472,21 @@
                 const policyLabels = {
                     adu: 'ADUs', lot_splits: 'Lot Splits', mansion_conversions: 'Mansion Conv.',
                     missing_middle_4_8: 'Missing Middle 4-8', missing_middle_9_16: 'Missing Middle 9-16',
-                    midrise: 'Midrise', no_parking: 'Parking Reform'
+                    midrise: 'Midrise', no_parking: 'Parking Reform', sb840_baseline: 'SB840 Baseline'
                 };
                 let scenarioLabel;
-                if (activePolicies.length === 0) {
+                const sb840Active = activePolicies.includes('sb840_baseline');
+                const otherActive = activePolicies.filter(p => p !== 'sb840_baseline');
+                if (otherActive.length === 0 && !sb840Active) {
                     scenarioLabel = 'Baseline (no policy)';
-                } else if (activePolicies.length === 7) {
-                    scenarioLabel = 'Full Reform Package';
-                } else if (activePolicies.length <= 2) {
-                    scenarioLabel = activePolicies.map(p => policyLabels[p] || p).join(' + ');
+                } else if (otherActive.length === 0 && sb840Active) {
+                    scenarioLabel = 'SB840 Baseline only (last resort)';
+                } else if (otherActive.length === 7) {
+                    scenarioLabel = 'Full Reform Package' + (sb840Active ? ' + SB840' : '');
+                } else if (otherActive.length <= 2) {
+                    scenarioLabel = otherActive.map(p => policyLabels[p] || p).join(' + ') + (sb840Active ? ' + SB840' : '');
                 } else {
-                    scenarioLabel = activePolicies.length + ' policies active';
+                    scenarioLabel = otherActive.length + ' policies active' + (sb840Active ? ' + SB840' : '');
                 }
                 lastRunResults = {
                     label: scenarioLabel,

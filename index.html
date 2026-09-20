@@ -348,7 +348,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="no_parking"> Eliminate Parking Minimums
             <span class="info-icon">i</span>
-            <div class="tooltip">Boosts achievable density by 20% on selected interventions by freeing up parking space for housing. Based on research (Shoup) showing a parking space + aisle typically eats 300-400 sq ft of buildable land — 20% is this model's own moderate estimate of the recovered yield, not a precise finding for El Paso. Full explanation in "How this model works."</div>
+            <div class="tooltip">Boosts achievable density by 20% on most interventions by freeing up parking space for housing. Based on research (Shoup) showing a parking space + aisle typically eats 300-400 sq ft of buildable land — 20% is this model's own moderate estimate, not a precise finding for El Paso. Midrise is the exception: it models the freed parking land directly (a much larger effect than 20%), so the multiplier isn't applied on top of it. Full explanation in "How this model works."</div>
         </label>
 
         <div style="margin-top: 16px; padding: 10px 12px; border: 1px dashed var(--jobs-light); border-radius: 8px; background: #fdf6ee;">
@@ -545,6 +545,42 @@
         street-facing character — but this dataset has lot area, not lot width, and approximating
         width from parcel geometry is unreliable for irregular shapes. This is a real known
         limitation, not a considered rejection of Parolek's approach.</p>
+
+        <h3>"Underutilized" doesn't gate every policy — on purpose</h3>
+        <p>The underutilization test (low building coverage relative to lot size) answers one
+        specific question: is there spare, underused land on this lot? That's the right question
+        for <strong>ADUs, Lot Splits, Midrise, the parking-reform boost, and SB840 Baseline</strong> —
+        they're all about adding a new use to land that isn't fully built out. It's the <em>wrong</em>
+        question for <strong>Mansion Conversion and both Missing Middle tiers</strong>, which are
+        about redeveloping a lot that already has a home on it — coverage ratio doesn't measure
+        whether that's a good candidate. An earlier version of this tool gated Missing Middle on
+        this test anyway, which incorrectly excluded the majority of real single-family/duplex/
+        triplex parcels: a normal, occupied home routinely covers well over 15% of its lot, so the
+        low-coverage screen was filtering out exactly the properties this policy is supposed to
+        reach. That's fixed — Missing Middle and Mansion Conversion now check only what actually
+        determines their eligibility (1-3 existing units, and a recorded structure to convert,
+        respectively), not building coverage.</p>
+        <p>Mansion Conversion can still show "not eligible" for a different reason: it needs real
+        <code>footprint_sqft</code> or <code>interior_sqft</code> data to size the conversion, and
+        that's missing for roughly 20-30% of otherwise-eligible parcels depending on district — a
+        data gap, not a judgment that the property is a poor candidate. The parcel popup flags this
+        distinctly when it's the cause.</p>
+
+        <h3>Midrise's density cap, and why nothing is counted twice</h3>
+        <p>Midrise sizes its unit count from the building envelope (lot × 50% coverage × floors ÷
+        unit size), then caps the result at <strong>145 units per acre of land</strong> — El Paso's
+        stated maximum density. The cap matters because 145/acre is a <em>land</em> density that
+        already presumes a multi-story building: an earlier version of this model multiplied
+        145/acre <em>by</em> the floor count, implying 580 units/acre at 4 floors — roughly 4× the
+        stated maximum and ~5× Manhattan's overall density. At the default 4 floors the envelope
+        yields about 102 units/acre; the cap starts binding around 6 floors.</p>
+        <p>Two double-counting rules follow from this. First, the 20% parking-reform boost is
+        <strong>not</strong> applied to Midrise units — Midrise already models freed parking land
+        directly by skipping its own parking deduction, an effect far larger than 20%, so applying
+        both would credit the same policy twice. Second, the parking reform job yield and Midrise's
+        ground-floor job yield use the <em>same</em> formula over the <em>same</em> ground-floor
+        commercial space, so the model takes the larger of the two rather than adding them, which
+        previously roughly doubled job counts whenever both were active.</p>
 
         <h3>Geographic constraints</h3>
         <p>Historic district protection, transit-corridor-only filtering, and recorded deed
@@ -1009,7 +1045,7 @@
                 // (see README / methodology modal for full reasoning on each).
                 const MIN_SPLIT_LOT_SIZE = 3500;       // sq ft — a lot split must leave two buildable halves
                 const MANSION_CONVERSION_EFFICIENCY = 0.85; // fraction of interior area usable after conversion (rest lost to hallways/common areas)
-                const CITYWIDE_DENSITY_PER_ACRE = 145;  // units/acre — citywide density standard for Missing Middle and Midrise
+                const CITYWIDE_DENSITY_PER_ACRE = 145;  // units/acre — citywide density standard; used by Midrise (Missing Middle and SB840 Baseline use the floors × coverage ÷ unit-size envelope instead)
                 const SQFT_PER_ACRE = 43560;
                 const PARKING_SQFT_PER_SPACE = 300;     // sq ft consumed per required off-street parking space, at an assumed 1 space/unit
 
@@ -1151,13 +1187,13 @@
                             // including 16 additional units), not a gross count reduced afterward.
                             // Not eligible on vacant land or parcels already at 4+ units — those
                             // aren't the 1-3 unit parcels this bonus program is offered to.
-                            else if (policy === 'missing_middle_4_8' && meetsUnderutilized && existingUnits >= 1 && existingUnits <= 3) {
+                            else if (policy === 'missing_middle_4_8' && existingUnits >= 1 && existingUnits <= 3) {
                                 const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(8, additionalCapacity);
                                 ruleLabel = 'Missing Middle (max 8)';
                             }
-                            else if (policy === 'missing_middle_9_16' && meetsUnderutilized && existingUnits >= 1 && existingUnits <= 3) {
+                            else if (policy === 'missing_middle_9_16' && existingUnits >= 1 && existingUnits <= 3) {
                                 const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(16, additionalCapacity);
@@ -1171,28 +1207,38 @@
                             // (the state-mandated minimum, not the workaround's reduced 35 ft/~3 floors)
                             // and the citywide max density. Applying the same minimum-unit-size approach
                             // as Missing Middle, just at the state's actual mandated floor count.
+                            // Eligibility is simply "not a 1-3 unit parcel": that leaves vacant land
+                            // (0 units), parcels at 4+ units, and commercial parcels — exactly the
+                            // categories SB840's flat mandate covers. (An earlier version also
+                            // checked isCommercial separately here, which was redundant: any parcel
+                            // passing the 1-3 unit guard already falls in one of those categories.)
                             else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= 3)) {
-                                const eligible = isCommercial || existingUnits === 0 || existingUnits > 3;
-                                if (eligible) {
-                                    const gross = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption);
-                                    net_u = Math.max(0, gross - existingUnits);
-                                    ruleLabel = 'SB840 Baseline';
-                                }
+                                const gross = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption);
+                                net_u = Math.max(0, gross - existingUnits);
+                                ruleLabel = 'SB840 Baseline';
                             }
 
 
-                            // --- Midrise / Vertical Mixed Use: residential unit count now uses the
-                            // citywide density standard (145 units/acre) scaled by the number of floors
-                            // selected, representing the full building envelope. If off-street parking
-                            // is still required (the "Eliminate Parking Minimums" policy is NOT active),
-                            // the achievable count is reduced by however much land that parking would
-                            // consume — 300 sq ft/space, assuming the standard 1 space per unit ratio
-                            // (this ratio is our assumption; only the sq-ft-per-space figure was given).
-                            // With parking eliminated, the full envelope is available for housing.
+                            // --- Midrise / Vertical Mixed Use: uses the same floor-area envelope
+                            // formula as Missing Middle and SB840 Baseline — lot × coverage × floors
+                            // ÷ unit size — then capped at the citywide maximum density (145 units
+                            // per ACRE of land). The cap matters: 145/acre is a LAND density that
+                            // already presumes a multi-story building, so an earlier version that
+                            // multiplied 145/acre BY the floor count implied 580 units/acre at 4
+                            // floors — about 4x the stated citywide maximum and ~5x Manhattan's
+                            // overall density. The envelope formula scales correctly with floors;
+                            // the cap keeps the stated maximum binding.
+                            // If off-street parking is still required (the "Eliminate Parking
+                            // Minimums" policy is NOT active), the achievable count is reduced by
+                            // however much land that parking would consume — 300 sq ft/space, at an
+                            // assumed 1 space per unit (that ratio is our assumption; only the
+                            // sq-ft-per-space figure was given).
                             else if (policy === 'midrise' && meetsUnderutilized) {
                                 const acres = lotSqft / SQFT_PER_ACRE;
                                 const parkingEliminated = activePolicies.includes('no_parking');
-                                let gross_u = Math.floor(CITYWIDE_DENSITY_PER_ACRE * acres * midriseFloors);
+                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * midriseFloors) / unitSizeAssumption);
+                                const densityCap = Math.floor(CITYWIDE_DENSITY_PER_ACRE * acres);
+                                let gross_u = Math.min(envelopeUnits, densityCap);
                                 if (!parkingEliminated && gross_u > 0) {
                                     const parkingAreaNeeded = gross_u * PARKING_SQFT_PER_SPACE;
                                     const remainingLandFraction = Math.max(0, (lotSqft - parkingAreaNeeded) / lotSqft);
@@ -1253,9 +1299,16 @@
                             } else {
                                 // Parking boosts whatever use the scenario permits, but never below
                                 // what parking alone would have guaranteed on this lot.
+                                // EXCEPTION: Midrise already accounts for parking elimination directly
+                                // (it skips its own parking land deduction when no_parking is active,
+                                // which is a far larger effect than 20%). Applying the multiplier on
+                                // top would count the same policy benefit twice — so when Midrise is
+                                // the winning rule for units, the multiplier is not applied.
+                                const midriseDroveUnits = (props._winningRuleUnits || '').startsWith('Midrise');
                                 if (baseScenario !== 'commercial') {
-                                    maxNetUnits = Math.max(maxNetUnits * parkingBoostMultiplier, parkingAloneFloor);
-                                    stackedUnits = Math.max(stackedUnits * parkingBoostMultiplier, parkingAloneFloor);
+                                    const unitMultiplier = midriseDroveUnits ? 1 : parkingBoostMultiplier;
+                                    maxNetUnits = Math.max(maxNetUnits * unitMultiplier, parkingAloneFloor);
+                                    stackedUnits = Math.max(stackedUnits * unitMultiplier, parkingAloneFloor);
                                 }
                             }
                             if (baseScenario !== 'residential') {
@@ -1267,21 +1320,26 @@
                         // BASE SCENARIO: applies after policy loop and parking unit boost
                         // 'residential' hard-zeros scenario-derived jobs — but parking job boost
                         // is added back in afterwards so it always survives.
+                        // NOTE: every scenario floor below requires at least one active policy.
+                        // A scenario is a framing for how reform yield is counted, not a source of
+                        // yield on its own — without this gate, simply selecting "Commercial Only"
+                        // or "Vertical Mixed Use" with nothing checked produced large citywide
+                        // totals, the same bug class already fixed for "current use."
+                        const anyPolicyActive = activePolicies.length > 0;
                         if (baseScenario === 'commercial') {
                             maxNetUnits = 0; stackedUnits = 0;
-                            if (meetsUnderutilized) {
+                            if (meetsUnderutilized && anyPolicyActive) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
                             }
                         } else if (baseScenario === 'mixed') {
-                            if (meetsUnderutilized) {
+                            if (meetsUnderutilized && anyPolicyActive) {
                                 maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
                                 stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                                // Floor applies as a lower bound regardless of which policies are active —
+                                // Floor applies as a lower bound regardless of WHICH policies are active —
                                 // previously this only applied when NO policy was checked at all, so an
                                 // active policy that happened to produce 0 units on this specific parcel
-                                // (e.g. Missing Middle on a lot too small for its tier) would silently
-                                // disable the floor and reduce the total below what zero policies gave.
+                                // would silently disable the floor and reduce the total.
                                 const mixedUnitFloor = (lotSqft * 0.25) / unitSizeAssumption;
                                 maxNetUnits = Math.max(maxNetUnits, mixedUnitFloor);
                                 stackedUnits = Math.max(stackedUnits, mixedUnitFloor);
@@ -1309,9 +1367,13 @@
                             // vacant/other: no override — policy loop values pass through
                         }
 
-                        // Re-apply parking job boost after base scenario — always survives residential zero
-                        maxNetJobs += parkingJobBoost;
-                        stackedJobs += stackedParkingJobBoost;
+                        // Re-apply parking job boost after base scenario — always survives residential zero.
+                        // Uses max(), not +=, because the parking job boost and Midrise's own job yield
+                        // are the SAME formula over the SAME ground-floor commercial space
+                        // ((lot × 0.5) / jobSize). Adding them counted that space twice, roughly
+                        // doubling job yield whenever Midrise and parking reform were both active.
+                        maxNetJobs = Math.max(maxNetJobs, parkingJobBoost);
+                        stackedJobs = Math.max(stackedJobs, stackedParkingJobBoost);
 
                         finalUnits = maxNetUnits * absorptionRate;
                         finalJobs = maxNetJobs * absorptionRate;
@@ -1380,7 +1442,19 @@
                         ? '<br><span style="color:#b45309;">⚠ Deed restriction applied</span>' : '';
                     const ruleNote = [props._winningRuleUnits, props._winningRuleJobs]
                         .filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
-                    const policyLabel = ruleNote || (meetsUnderutilized ? 'Base scenario floor' : 'None — not eligible');
+                    // Distinguish the three real reasons a parcel shows no policy yield, rather than
+                    // lumping them all under "not eligible": nothing selected, a scenario floor
+                    // fired, or the parcel genuinely failed the screens for what IS selected.
+                    let policyLabel;
+                    if (ruleNote) {
+                        policyLabel = ruleNote;
+                    } else if (activePolicies.length === 0) {
+                        policyLabel = 'None — no policy selected';
+                    } else if (meetsUnderutilized && (finalUnits > 0 || finalJobs > 0)) {
+                        policyLabel = 'Base scenario floor';
+                    } else {
+                        policyLabel = 'None — not eligible for selected policies';
+                    }
                     let hbu;
                     if (finalUnits > 0 && finalJobs > 0) hbu = 'Mixed use (housing + commercial)';
                     else if (finalUnits > 0) hbu = 'Residential';
@@ -1394,6 +1468,15 @@
                     const dataGapNote = noSourceData
                         ? '<br><span style="color:#b45309;">⚠ No existing-conditions data in source file for this parcel — "underutilized" here is a data gap, not a verified finding.</span>'
                         : '';
+                    // Mansion Conversion needs real footprint/interior data to size the conversion —
+                    // flag when that's specifically what's missing, on a parcel otherwise eligible
+                    // (1-3 existing units), so this doesn't read as "not a good candidate" when it's
+                    // actually just "no structure size recorded for this parcel."
+                    const mansionDataGap = (activePolicies.includes('mansion_conversions')
+                        && existingUnits >= 1 && existingUnits <= 3
+                        && bldgSqft === 0 && interiorSqft === 0 && !noSourceData)
+                        ? '<br><span style="color:#b45309;">⚠ No building size recorded for this parcel — Mansion Conversion can\'t size a conversion without it, even if a real structure exists here.</span>'
+                        : '';
                     layer.bindPopup(`
                         <div class="parcel-popup" style="font-size:12px; line-height:1.5;">
                           <strong>District ${props._district}</strong><br>
@@ -1404,7 +1487,7 @@
                           Highest &amp; best use (this scenario): <strong>${hbu}</strong><br>
                           Policy applied: ${policyLabel}<br>
                           <span class="yield-line"><strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong></span>
-                          ${covenantNote}${dataGapNote}
+                          ${covenantNote}${dataGapNote}${mansionDataGap}
                         </div>
                     `);
                 }); 

@@ -1,1750 +1,328 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Paso Housing Strategy Simulator</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            /* Warm, desert-grounded palette — deliberately not generic SaaS blue */
-            --primary: #a8461f;
-            --primary-hover: #8a3717;
-            --bg-color: #faf7f2;
-            --surface: #ffffff;
-            --surface-alt: #f3ece0;
-            --text-main: #2a2117;
-            --text-muted: #7c7062;
-            --border: #e6ddd0;
-            --housing: #2d5d5e;
-            --housing-light: #a9c9c6;
-            --jobs: #b5541f;
-            --jobs-light: #e8bc93;
-            --mixed: #6b4a7a;
-            --success: #4d7c4a;
-            --font-display: 'Fraunces', Georgia, serif;
-            --font-ui: 'Inter', sans-serif;
-        }
-        * { box-sizing: border-box; }
-        body { 
-            font-family: var(--font-ui); 
-            margin: 0; 
-            padding: 0; 
-            background-color: var(--bg-color); 
-            display: flex;
-            flex-direction: column;
-            height: 100vh; 
-            overflow: hidden;
-        }
-        h1, h2, h3 { font-family: var(--font-display); }
-
-        /* App Header */
-        #app-header {
-            flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
-            padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 1002;
-        }
-        #app-header .title-block h1 {
-            font-size: 19px; font-weight: 600; margin: 0; color: var(--text-main); line-height: 1.2;
-        }
-        #app-header .title-block p {
-            font-size: 12.5px; color: var(--text-muted); margin: 2px 0 0 0; max-width: 560px; line-height: 1.4;
-        }
-        #methodology-btn {
-            background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border);
-            padding: 9px 16px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer;
-            flex-shrink: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap;
-        }
-        #methodology-btn:hover { background: var(--surface-alt); border-color: var(--jobs-light); }
-
-        #main-row { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
-
-        /* Compact banner, now inside the header */
-        #target-banner-compact { display: flex; align-items: center; gap: 22px; flex-shrink: 0; padding: 0 18px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
-        .progress-block-compact { width: 148px; }
-        .progress-label-compact { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: 700; margin-bottom: 4px; }
-        .progress-label-compact span:last-child { color: var(--text-main); font-weight: 600; }
-        .progress-track { position: relative; height: 7px; background: var(--surface-alt); border-radius: 4px; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
-        .progress-fill.housing-fill { background: var(--housing); }
-        .progress-fill.jobs-fill { background: var(--jobs); }
-        .progress-fill.target-met { background: var(--success); }
-        .progress-tick { position: absolute; top: -2px; width: 2px; height: 11px; background: var(--text-main); opacity: 0.45; }
-        .housing-text { color: var(--housing); }
-        .jobs-text { color: var(--jobs); }
-
-        /* Slim summary row below the header */
-        #summary-bar {
-            flex: 0 0 auto; padding: 6px 24px; background: var(--surface-alt);
-            border-bottom: 1px solid var(--border); text-align: center;
-        }
-        #summary-line { font-size: 11.5px; color: var(--text-main); line-height: 1.4; }
-
-        /* Sidebar Styles */
-        #sidebar { 
-            width: 380px; 
-            background: var(--surface); 
-            border-right: 1px solid var(--border); 
-            padding: 20px; 
-            overflow-y: auto; 
-            z-index: 1001; 
-            display: flex;
-            flex-direction: column;
-        }
-        #sidebar h2 { margin: 0 0 2px 0; font-size: 20px; font-weight: 600; }
-        #sidebar .subhead { font-size: 12px; color: var(--text-muted); margin: 0 0 16px 0; }
-        .section-title { 
-            font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; 
-            margin: 22px 0 10px 0; padding-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
-            cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);
-        }
-        .section-title .chevron { font-size: 10px; transition: transform 0.2s; color: var(--text-muted); }
-        .section-title.collapsed .chevron { transform: rotate(-90deg); }
-        .collapsible-body { overflow: visible; }
-        .collapsible-body.collapsed { display: none; }
-        
-        .control-group { margin-bottom: 12px; position: relative; }
-        
-        /* Tooltip Logic */
-        .tooltip-container { position: relative; display: flex; align-items: center; cursor: pointer; }
-        .info-icon { 
-            display: inline-block; width: 14px; height: 14px; background: #b3a48f; color: white; border-radius: 50%; text-align: center; font-size: 10px; line-height: 14px; margin-left: 8px; flex-shrink: 0;
-        }
-        .tooltip { 
-            display: none; position: absolute; left: 25px; top: 20px; background: var(--text-main); color: white; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 400; max-width: 220px; z-index: 2000; box-shadow: 0 4px 6px rgba(0,0,0,0.15); line-height: 1.4;
-        }
-        .info-icon:hover + .tooltip, .tooltip-container:hover .tooltip { display: block; }
-        
-        .checkbox-group { display: flex; align-items: center; margin-bottom: 10px; font-size: 13px; font-weight: 500; color: var(--text-main); }
-        .checkbox-group input[type="checkbox"] { margin-right: 8px; width: 15px; height: 15px; cursor: pointer; accent-color: var(--primary); }
-        
-        label { display: flex; align-items: center; font-weight: 600; margin-bottom: 6px; color: var(--text-main); font-size: 13px; }
-        select, input[type="range"] { 
-            width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; box-sizing: border-box; background: var(--bg-color); font-family: var(--font-ui); color: var(--text-main);
-        }
-        input[type="range"] { accent-color: var(--primary); padding: 0; }
-        
-        button.run-btn { 
-            background: var(--primary); color: white; border: none; padding: 12px 15px; width: 100%; border-radius: 7px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 16px; font-size: 15px;
-        }
-        button.run-btn:hover { background: var(--primary-hover); }
-
-        /* Table Styles */
-        table.district-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
-        .district-table th, .district-table td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--border); }
-        .district-table th { text-align: right; color: var(--text-muted); font-weight: 600; background: var(--bg-color); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
-        .district-table th:first-child, .district-table td:first-child { text-align: left; font-weight: 600; }
-        .district-table tr.total-row { font-weight: 700; font-size: 13px; background: var(--surface-alt); }
-
-        #map { flex-grow: 1; height: 100%; position: relative; z-index: 1;}
-        
-        /* Map Legend */
-        .map-legend {
-            position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.96); padding: 14px 16px; border-radius: 10px; box-shadow: 0 4px 16px rgba(42,33,23,0.12); z-index: 1000; font-size: 12px; border: 1px solid var(--border);
-        }
-        .legend-title { font-family: var(--font-display); font-weight: 600; margin-bottom: 10px; color: var(--text-main); text-align: center; font-size: 13px;}
-        .legend-row { display: flex; align-items: center; margin-bottom: 6px; }
-        .color-box { width: 16px; height: 16px; margin-right: 8px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);}
-
-        /* Loading Overlay */
-        #loading-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(250,247,242,0.97); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: 600; color: var(--primary); flex-direction: column; font-family: var(--font-display);
-        }
-
-        /* Methodology Modal */
-        #methodology-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(42,33,23,0.55); z-index: 5000; align-items: center; justify-content: center;
-        }
-        #methodology-modal {
-            background: var(--surface); width: min(720px, 90vw); max-height: 85vh; overflow-y: auto;
-            border-radius: 12px; padding: 28px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        #methodology-modal h2 { margin-top: 0; font-size: 24px; }
-        #methodology-modal h3 { font-family: var(--font-ui); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; margin: 20px 0 6px 0; color: var(--jobs); }
-        #methodology-modal p, #methodology-modal li { font-size: 13.5px; line-height: 1.6; color: #4a4136; }
-        #methodology-modal .caveat {
-            background: var(--surface-alt); border: 1px solid var(--border); border-left: 3px solid var(--jobs); border-radius: 8px; padding: 12px 14px;
-            font-size: 12.5px; margin-top: 18px;
-        }
-        #methodology-close {
-            float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);
-        }
-
-        /* Scenario comparison */
-        .scenario-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }
-        .scenario-row-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-        .scenario-row-label { font-size: 12px; font-weight: 700; color: var(--text-main); }
-        .scenario-row-remove { font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 0; }
-        .scenario-bar-line { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 4px; }
-        .scenario-bar-track { flex: 1; height: 7px; background: var(--surface-alt); border-radius: 4px; overflow: hidden; }
-        .scenario-bar-fill { height: 100%; border-radius: 4px; }
-
-        /* Parcel inspector popup */
-        .leaflet-popup-content { margin: 12px 14px; font-family: var(--font-ui); }
-        .leaflet-popup-content-wrapper { border-radius: 8px; }
-        .parcel-popup strong { color: var(--text-main); }
-        .parcel-popup .yield-line { font-family: var(--font-display); font-size: 14px; }
-    </style>
-</head>
-<body>
-
-    <div id="loading-overlay">
-        <div id="loading-text">Loading Citywide Data &amp; Generating Map...</div>
-    </div>
-
-    <div id="app-header">
-        <div class="title-block">
-            <h1>El Paso Housing Strategy Simulator</h1>
-            <p>Quantifying how zoning reform — ADUs, lot splits, missing middle, midrise, parking reform — could unlock new housing units and jobs, parcel by parcel.</p>
-        </div>
-
-        <div id="target-banner-compact">
-            <div class="progress-block-compact">
-                <div class="progress-label-compact">
-                    <span class="housing-text">Housing</span>
-                    <span id="pb-units-text">0 / 35,000</span>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-fill housing-fill" id="pb-units-fill" style="width:0%;"></div>
-                    <div class="progress-tick" id="pb-units-tick" style="left:0%;"></div>
-                </div>
-            </div>
-            <div class="progress-block-compact">
-                <div class="progress-label-compact">
-                    <span class="jobs-text">Jobs</span>
-                    <span id="pb-jobs-text">0 / 55,000</span>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-fill jobs-fill" id="pb-jobs-fill" style="width:0%;"></div>
-                    <div class="progress-tick" id="pb-jobs-tick" style="left:0%;"></div>
-                </div>
-            </div>
-            <div class="tooltip-container">
-                <span class="info-icon">i</span>
-                <div class="tooltip" style="left: auto; right: 0; top: 20px;">Bar = conservative estimate (highest single policy per parcel). Tick mark = upper bound if every eligible policy stacked — see methodology.</div>
-            </div>
-        </div>
-
-        <button id="methodology-btn" onclick="document.getElementById('methodology-overlay').style.display='flex'">
-            ⓘ How this model works
-        </button>
-    </div>
-    <div id="summary-bar">
-        <div id="summary-line"></div>
-    </div>
-
-    <div id="main-row">
-
-    <div id="sidebar">
-        <h2>Housing Strategy</h2>
-        <p class="subhead">Click any parcel on the map to see how its yield was calculated.</p>
-
-        <div class="control-group" style="margin-bottom: 16px;">
-            <label for="parcelSearch">Find an address or parcel ID</label>
-            <div style="display: flex; gap: 6px;">
-                <input type="text" id="parcelSearch" placeholder="e.g. 500 N Stanton St, or a PIDN"
-                    style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: var(--font-ui);"
-                    onkeydown="if(event.key==='Enter') searchLocation();">
-                <button onclick="searchLocation()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-alt); cursor: pointer; font-size: 13px;">Go</button>
-            </div>
-            <div id="searchStatus" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; min-height: 14px;"></div>
-        </div>
-
-        <div class="section-title" onclick="toggleSection(this)">Filters &amp; Constraints <span class="chevron">▾</span></div>
-        <div class="collapsible-body">
-        
-        <div class="control-group">
-            <label>Representative District</label>
-            <select id="districtFilter">
-                <option value="all">Citywide (All Districts)</option>
-                <option value="1">District 1</option>
-                <option value="2">District 2</option>
-                <option value="3">District 3</option>
-                <option value="4">District 4</option>
-                <option value="5">District 5</option>
-                <option value="6">District 6</option>
-                <option value="7">District 7</option>
-                <option value="8">District 8</option>
-            </select>
-        </div>
-
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" id="transitOnly"> Apply to Transit Corridors Only
-            <span class="info-icon">i</span>
-            <div class="tooltip">Restricts all policy math to parcels located within a 1/2 mile distance of designated transit corridors.</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" id="protectHistoric" checked> Protect Historic Districts
-            <span class="info-icon">i</span>
-            <div class="tooltip">Blocks new-construction and exterior-changing interventions (Lot Splits, Missing Middle, Midrise, SB840 Baseline) on parcels within historically designated boundaries. Mansion Conversion is exempt — it's an interior reconfiguration with no exterior change, so it isn't what historic review governs.</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" id="applyDeedRestrictions"> Enforce Deed Restrictions
-            <span class="info-icon">i</span>
-            <div class="tooltip">Detects commercial-only or single-family-only HOA restrictions and forcefully limits density algorithms.</div>
-        </label>
-        </div>
-        
-        <div class="section-title">Policy Interventions</div>
-        
-        <div class="control-group tooltip-container" style="margin-bottom: 15px;">
-            <label style="margin-bottom: 0;">Base Scenario <span class="info-icon">i</span></label>
-            <div class="tooltip">Decides how the reforms you check are counted on each parcel. It never adds housing or jobs on its own — with no reform checked, every scenario shows zero.</div>
-            <select id="baseScenario" style="margin-top: 6px;">
-                <option value="current">Current Land Use (each parcel keeps its use)</option>
-                <option value="residential">Residential Only (count housing, drop jobs)</option>
-                <option value="commercial">Commercial Only (count jobs, drop housing)</option>
-                <option value="mixed">Vertical Mixed Use (count both)</option>
-            </select>
-        </div>
-
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="adu"> Allow ADUs
-            <span class="info-icon">i</span>
-            <div class="tooltip">Permits Accessory Dwelling Units (+1 net unit) on qualifying single-family residential lots.</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="lot_splits"> Allow Lot Splits
-            <span class="info-icon">i</span>
-            <div class="tooltip">Allows dividing large, underutilized residential lots into two buildable parcels (+1 net unit).</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="mansion_conversions"> Mansion Conversions
-            <span class="info-icon">i</span>
-            <div class="tooltip">Divides any existing residential building into more units: 1 unit per 500 sq ft of building (adjustable under Model Assumptions), minus the units already there. No parking required (unlike Missing Middle and SB840 Baseline, which assume 1 space/unit) — that's what makes this tool distinct. A 2,000 sq ft single-family house nets 3 new units. The one policy NOT blocked by "Protect Historic Districts": it's an interior conversion with no exterior change.</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="missing_middle_4_8"> Missing Middle (4-8 Units)
-            <span class="info-icon">i</span>
-            <div class="tooltip">A density bonus offered as an alternative for parcels currently at 3 units or fewer (single-family, duplex, triplex): 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 additional units. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked. Above 3 units SB840 itself applies instead — see the SB840 Baseline option.</div>
-        </label>
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="missing_middle_9_16"> Missing Middle (9-16 Units)
-            <span class="info-icon">i</span>
-            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 additional units instead of 8 — meaningfully larger on bigger 1-3 unit lots with smaller unit sizes. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked.</div>
-        </label>
-        
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="midrise"> Allow Midrise Development
-            <select id="midrise_floors" style="width: 70px; margin-left: auto; padding: 4px; font-size: 12px;">
-                <option value="4" selected>4 Fl</option>
-                <option value="5">5 Fl</option>
-                <option value="6">6 Fl</option>
-                <option value="8">8 Fl</option>
-            </select>
-            <span class="info-icon">i</span>
-            <div class="tooltip">Permits high-density mixed-use development. Floor count starts at 4 — SB840's mandated minimum wherever this density is allowed. Jobs on floor 1, housing above.</div>
-        </label>
-
-        <label class="checkbox-group tooltip-container">
-            <input type="checkbox" class="policy-cb" value="no_parking"> Eliminate Parking Minimums
-            <span class="info-icon">i</span>
-            <div class="tooltip">Two effects. First, removes the parking-land deduction that Missing Middle, SB840 Baseline, and Midrise otherwise apply (assuming 1 space/unit at 300 sq ft each) — often the larger effect. Second, boosts ADU/Lot Split yield by 20% (research: Shoup — a moderate estimate, not a precise finding for El Paso). Not applied twice to Midrise or Mansion Conversion, which already model parking directly. Full explanation in "How this model works."</div>
-        </label>
-
-        <div style="margin-top: 16px; padding: 10px 12px; border: 1px dashed var(--jobs-light); border-radius: 8px; background: #fdf6ee;">
-            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jobs); font-weight: 700; margin-bottom: 6px;">Last Resort — Not a Preferred Outcome</div>
-            <label class="checkbox-group tooltip-container" style="margin-bottom: 4px;">
-                <input type="checkbox" class="policy-cb" value="sb840_baseline"> SB840 Baseline (Commercial &amp; 4+ Unit Parcels)
-                <span class="info-icon">i</span>
-                <div class="tooltip">Texas SB840's flat, blunt mandate: commercial parcels, vacant land, and parcels already at 4+ units must be allowed 4 floors and the citywide max density (145 units/acre) — the city has no discretion to restrict this. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked. This is what happens by default if nothing more tailored is done. It is intentionally excluded from "Load Full Reform Package" — the other interventions exist precisely to avoid needing this blunt instrument.</div>
-            </label>
-            <p style="font-size: 10.5px; color: var(--text-muted); margin: 4px 0 0 0; line-height: 1.4;">Shows the out-of-scale development SB840 forces absent local action — the reason the interventions above are preferable, not an alternative to them.</p>
-        </div>
-
-        <div class="control-group" style="margin-top: 15px;">
-            <label>Market Absorption Rate: <span id="absorption-val" style="margin-left: 5px; color: var(--primary);">8%</span></label>
-            <input type="range" id="absorption" min="0" max="100" value="8" step="1">
-            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">Realistic probability of development over 10 years</div>
-            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
-                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Why 8%? <span class="info-icon" style="margin-left:3px;">i</span></span>
-                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    El Paso County averaged ~2,517 new housing permits/year, 2020–2024 (Census/FRED BPPRIV048141) — down from ~3,100/yr (2013–2022) and ~4,300/yr (2003–2012). Most of that was greenfield growth, not redevelopment of already-built-up parcels — the category this model targets — so 8% is set conservatively below that pace. See "How this model works" for the full worked example and reasoning.
-                </div>
-            </div>
-        </div>
-
-        <div class="section-title collapsed" onclick="toggleSection(this)">Model Assumptions (Advanced) <span class="chevron">▾</span></div>
-        <div class="collapsible-body collapsed">
-        <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 12px 0; line-height: 1.4;">These three numbers are general planning-literature benchmarks, not El Paso-specific data (see "How this model works" for full sourcing). Defaults reflect our best reasoning — adjust them if you have better local evidence.</p>
-
-        <div class="control-group">
-            <label>Unit Size: <span id="unitSize-val" style="margin-left: 5px; color: var(--primary);">850</span> sq ft/unit</label>
-            <input type="range" id="unitSizeAssumption" min="500" max="1400" value="850" step="25">
-            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
-                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
-                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    Controls unit yield for new construction: Midrise, both Missing Middle tiers, and SB840 Baseline (Mansion Conversion uses its own Conversion Size below). <strong>Increase</strong> if you expect future construction to skew toward larger family-sized 2–3BR units — this LOWERS the unit count. <strong>Decrease</strong> toward 600–700 if you expect efficient studios/1BR to dominate, or if recent local multifamily permits run smaller than 850 sq ft — this RAISES the unit count.
-                </div>
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label>Conversion Size: <span id="conversionSize-val" style="margin-left: 5px; color: var(--primary);">500</span> sq ft/unit</label>
-            <input type="range" id="conversionSizeAssumption" min="300" max="1000" value="500" step="25">
-            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
-                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
-                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    Mansion Conversion only: one unit for every this-many square feet of an existing residential building. Smaller than new-construction Unit Size because conversions carve existing floor area into efficient units. <strong>Decrease</strong> toward 400 if studios and micro-units are realistic in converted homes — RAISES yield. <strong>Increase</strong> toward 700–800 if converted units need to be family-sized, or if interior walls and stairs lose more space than expected — LOWERS yield.
-                </div>
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label>Job Density: <span id="jobSize-val" style="margin-left: 5px; color: var(--primary);">1,000</span> sq ft/job</label>
-            <input type="range" id="jobSizeAssumption" min="250" max="2000" value="1000" step="50">
-            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
-                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
-                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    A LOWER number means denser employment (more jobs per sq ft) and a HIGHER job count. <strong>Decrease</strong> toward 200–500 if you expect dense uses like retail or food service to dominate future commercial space. <strong>Increase</strong> toward 1,500–2,000 if you expect low-density uses like warehousing or light industrial — this LOWERS the job count.
-                </div>
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label>Parking Reform Boost: <span id="parkingBoost-val" style="margin-left: 5px; color: var(--primary);">20%</span></label>
-            <input type="range" id="parkingBoostAssumption" min="0" max="50" value="20" step="5">
-            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
-                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
-                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    How much extra unit yield "Eliminate Parking Minimums" adds to other active interventions. <strong>Decrease</strong> toward 0% for a maximally conservative estimate that assumes parking reform has little practical effect on what gets built. <strong>Increase</strong> toward 30–50% if El Paso's current parking minimums are unusually large relative to actual demand, freeing up more land than a typical city.
-                </div>
-            </div>
-        </div>
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-top: 14px;">
-            <button onclick="loadPreset('full')" style="flex:1; padding: 9px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-alt); color: var(--text-main); font-weight: 600; font-size: 12px; cursor: pointer;">Load Full Reform Package</button>
-            <button onclick="loadPreset('reset')" style="flex:1; padding: 9px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 12px; cursor: pointer;">Reset to Baseline</button>
-        </div>
-
-        <button class="run-btn" onclick="runSimulation()">Run Simulation</button>
-
-        <div class="section-title" style="margin-top: 15px;">Impact By District</div>
-        <table class="district-table">
-            <thead>
-                <tr>
-                    <th>District</th>
-                    <th>Net Units</th>
-                    <th>Net Jobs</th>
-                </tr>
-            </thead>
-            <tbody id="table-body">
-                </tbody>
-        </table>
-
-        <div class="section-title collapsed" onclick="toggleSection(this)">Scenario Comparison <span class="chevron">▾</span></div>
-        <div class="collapsible-body collapsed">
-            <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 10px 0; line-height: 1.4;">Run a configuration, then save it to compare against other configurations side by side. Saves up to 4 at a time.</p>
-            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                <button onclick="saveScenario()" style="flex:1; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-alt); color: var(--text-main); font-weight: 600; font-size: 12px; cursor: pointer;">Save This Run</button>
-                <button onclick="clearScenarios()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 12px; cursor: pointer;">Clear</button>
-            </div>
-            <div id="scenario-comparison-list"></div>
-        </div>
-    </div>
-
-    <div id="methodology-overlay" onclick="if(event.target===this) this.style.display='none'">
-      <div id="methodology-modal">
-        <button id="methodology-close" onclick="document.getElementById('methodology-overlay').style.display='none'">✕</button>
-        <h2>How This Model Works</h2>
-        <p>This tool estimates <strong>potential parcel-level redevelopment capacity under
-        reformed zoning</strong> — it is not a prediction of what will get built, and it does
-        not check whether a parcel's <em>current</em> base zoning allows the modeled yield.
-        Each policy intervention is assumed to supply its own entitlement.</p>
-
-        <h3>Eligibility</h3>
-        <p>A parcel qualifies for redevelopment yield if it is assessor-coded vacant, or its
-        building-to-lot coverage is below 15% (residential/current-use scenarios) or 45%
-        (commercial &amp; mixed-use scenarios), or it has no recorded units or building area.</p>
-
-        <h3>How yield is calculated</h3>
-        <p>Each active policy proposes a unit and/or job yield for a parcel. The model's
-        headline number takes the <strong>single highest-yielding intervention</strong> per
-        parcel, separately for units and jobs — it does not add multiple interventions
-        together. Click any parcel on the map to see exactly which rule produced its yield.</p>
-
-        <p><strong>The base scenario only decides how reforms are applied — it never produces
-        housing or jobs on its own.</strong> Every unit and job traces back to a specific checked
-        reform. The scenario then filters those results: <em>Residential Only</em> keeps units and
-        drops jobs, <em>Commercial Only</em> keeps jobs and drops units, <em>Vertical Mixed Use</em>
-        keeps both exactly as the reforms produced them, and <em>Current Land Use</em> keeps each
-        parcel to its existing use (commercial → jobs, residential → units). With nothing checked,
-        every scenario shows zero. (Earlier versions gave Commercial and Mixed Use their own flat
-        floor yields on every underutilized parcel once any box was checked — so Mixed Use plus
-        ADUs alone reported ~50,000 units and ~85,000 jobs that no selected reform created, versus
-        416 units from ADUs under any other scenario. That's removed.) A related, separate bug
-        persisted after that fix: checking "Eliminate Parking Minimums" alone — with no
-        job-producing policy active — still generated jobs under any scenario that keeps them,
-        because parking reform had its own standalone job formula identical to Midrise's. See
-        "Midrise's density cap" below for that fix.</p>
-
-        <h3>Market Absorption Rate — and how we chose 8%</h3>
-        <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
-        eligible parcel actually redevelops — most owners never sell or build even after
-        a zoning change makes it possible. <strong>Worked example:</strong> if a policy
-        combination makes 8,000 parcels eligible for an average of 2.5 net units each,
-        that's 20,000 gross units at 100% absorption. At the default 8%, the model counts
-        1,600 of those as a realistic 10-year outcome — the rest remain technically
-        possible but aren't assumed to get built.</p>
-        <p>The 8% default is the one number in this model grounded in real regional data
-        rather than a generic rule of thumb: El Paso County averaged ~2,517 new housing
-        permits/year from 2020–2024 (Census/FRED), down from ~3,100/yr (2013–2022) and
-        ~4,300/yr (2003–2012). But most of that activity has been greenfield subdivision
-        growth at the county's edge, not redevelopment of already-built-up parcels — the
-        only category this model touches — so the true infill-specific pace is smaller
-        still. 8% is set conservatively below the county-wide pace in that light. It's a
-        defensible starting point, not a validated calibration — that would require
-        comparing actual infill permits against this model's own eligible-parcel count,
-        which the underlying data doesn't yet support. Full sourcing is in the README.</p>
-
-        <h3>Why does eliminating parking minimums boost yield by 20% by default?</h3>
-        <p>A parking space plus its drive aisle typically consumes 300–400 sq ft — often
-        more land than the unit it serves. This is the central finding of decades of
-        parking-policy research (notably UCLA's Donald Shoup, <em>The High Cost of Free
-        Parking</em>): minimum parking requirements convert a large share of a site into
-        space for cars, and removing that mandate frees land for housing or commercial
-        space instead. That research explains <em>why</em> this matters; it doesn't hand
-        over one universal conversion number, since actual land recovered depends on lot
-        shape and each city's specific parking code. 20% is this model's own moderate,
-        round-number default estimate of that boost — noticeable but not assuming a
-        windfall. <strong>This number is adjustable</strong> — see "Model Assumptions
-        (Advanced)" in the sidebar — with guidance on which direction to move it.</p>
-
-        <h3>Where do the default 850 sq ft/unit and 1,000 sq ft/job figures come from?</h3>
-        <p>These are general planning-literature benchmarks, not El Paso-specific data —
-        no local dataset exists to calibrate them, unlike the absorption rate above.
-        850 sq ft approximates a modest, efficient 1–2 bedroom multifamily unit. 1,000 sq
-        ft/job is a blended midpoint across commercial uses that actually vary widely —
-        dense retail/office can run 200–500 sq ft/employee, while warehouse/light-industrial
-        can run 1,000–2,000+ sq ft/employee. Using one moderate figure everywhere avoids
-        assuming the densest possible use on every parcel, but it means parcels that would
-        realistically become dense retail are likely undercounted on jobs, and ones that
-        would become light-industrial are likely overcounted. <strong>Both figures are
-        adjustable</strong> in "Model Assumptions (Advanced)" in the sidebar, each with
-        guidance on which direction fits your expectations for what gets built.</p>
-
-        <h3>Why Missing Middle is capped at 8 or 16 units, and only on 1-3 unit parcels</h3>
-        <p>This follows Texas SB840. The law requires that any zone permitting more than 3 units
-        must allow 4 floors and the city's maximum density (145 units/acre) outright — a state
-        mandate the city cannot restrict. The one exception is a "workaround": on parcels that
-        currently have 1–3 existing units (single-family, duplex, or triplex), the city may impose
-        additional local limits in exchange for offering a density bonus. That's what the two
-        Missing Middle checkboxes model — a bonus program specifically for those parcels, capped at
-        8 or 16 additional units depending on which is selected, using a reduced 35 ft height limit
-        (≈3 floors) rather than SB840's full 4-floor mandate. Both tiers, and SB840 Baseline, assume
-        one off-street parking space per unit (300 sq ft each) unless "Eliminate Parking Minimums"
-        is also checked, which measurably reduces their achievable yield — the same land-consumption
-        calculation Midrise uses. (An earlier version described this parking assumption without
-        actually implementing it in either formula, so the stated framing and the math disagreed.)</p>
-        <p><strong>Why 3 units is the dividing line for Missing Middle:</strong> SB840 is triggered
-        by anything permitting <em>more than 3 units</em>. Above that line the state mandate simply
-        applies and the city has no discretion — so a local density-bonus program can only be
-        offered as an alternative to properties currently at 3 units or fewer. Texas assessor state
-        codes are the proxy: A1 single-family (1 unit), A51/B1 duplex (2), and A53/B3 triplex (3)
-        fall inside; A54/B4/B9 quadplex (4), A52/B2 apartment, and the B5–B8 codes fall outside,
-        where SB840 governs directly. Missing Middle and SB840 Baseline are exact complements across
-        this line, so every parcel gets one or the other, never both.</p>
-        <p><strong>Mansion Conversion is a separate tool with no unit-count threshold.</strong>
-        It isn't an SB840 program and doesn't rely on SB840's 3-unit trigger. Its distinguishing
-        feature is that it requires <em>no additional parking</em>, while Missing Middle and SB840
-        Baseline both deduct land for one off-street space per unit (unless parking reform is also
-        active) — a real difference in the math, not just in how each is described. See "How Mansion Conversion is calculated"
-        below. A parcel can be eligible for both Mansion Conversion and another program; that isn't
-        double-counting, because the engine credits only the single highest-yielding intervention
-        per parcel.</p>
-        <p>Everything else — commercial parcels, vacant land, and anything above 3 units —
-        isn't eligible for the Missing Middle bonus, because it isn't the 1-3 unit parcel that
-        bonus is offered to. Instead,
-        <strong>SB840's flat mandate applies directly</strong>, modeled as its own "SB840 Baseline"
-        checkbox: 4 floors (the state's actual minimum, not the workaround's reduced height) at the
-        same coverage and unit-size approach. Midrise's floor selector also starts at 4 for the same
-        reason — SB840 sets 4 floors as the floor, not a suggestion, wherever this density applies.</p>
-        <p><strong>SB840 Baseline should be read as a last resort, not a recommended outcome.</strong>
-        Its numbers are intentionally large and out of scale with typical neighborhood character —
-        that scale is the point. It illustrates what happens by default, everywhere it applies,
-        absent any more tailored local action: a blunt, one-size-fits-all mandate rather than the
-        kind of context-sensitive infill the other interventions represent. It's deliberately
-        excluded from "Load Full Reform Package" and kept visually separate in the sidebar for this
-        reason — the other policies exist precisely so this blunt instrument doesn't have to be the
-        only path to added density.</p>
-        <p>Building size in both calculations is driven by unit size (lot area × coverage × floors,
-        divided by an assumed unit size) rather than lot width. Dan Parolek's <em>Missing Middle
-        Housing</em> argues lot width should drive massing instead, which better reflects
-        street-facing character — but this dataset has lot area, not lot width, and approximating
-        width from parcel geometry is unreliable for irregular shapes. This is a real known
-        limitation, not a considered rejection of Parolek's approach.</p>
-
-        <h3>"Underutilized" doesn't gate every policy — on purpose</h3>
-        <p>The underutilization test (low building coverage relative to lot size) answers one
-        specific question: is there spare, underused land on this lot? That's the right question
-        for <strong>ADUs, Lot Splits, Midrise, the parking-reform boost, and SB840 Baseline</strong> —
-        they're all about adding a new use to land that isn't fully built out. It's the <em>wrong</em>
-        question for <strong>Mansion Conversion and both Missing Middle tiers</strong>, which are
-        about redeveloping a lot that already has a home on it — coverage ratio doesn't measure
-        whether that's a good candidate. An earlier version of this tool gated Missing Middle on
-        this test anyway, which incorrectly excluded the majority of real single-family/duplex/
-        triplex parcels: a normal, occupied home routinely covers well over 15% of its lot, so the
-        low-coverage screen was filtering out exactly the properties this policy is supposed to
-        reach. That's fixed — Missing Middle and Mansion Conversion now check only what actually
-        determines their eligibility (1–3 existing units for Missing Middle; a residential building
-        with recorded floor area for Mansion Conversion), not building coverage.</p>
-
-        <h3>How Mansion Conversion is calculated</h3>
-        <p><strong>Any residential building can be divided into more units than it has now, at one
-        unit per 500 sq ft of building, with no parking required.</strong></p>
-        <p style="font-family: monospace; font-size: 12.5px; background: var(--surface-alt); padding: 8px 10px; border-radius: 6px;">
-        gross units = floor(building sq ft ÷ 500)<br>
-        net new units = gross units − existing units (never below 0)</p>
-        <p>A 2,000 sq ft single-family house: 2,000 ÷ 500 = 4 units, minus the 1 already there =
-        <strong>3 net new units</strong>. A 3,200 sq ft duplex: 6 − 2 = 4 net new. The 500 sq ft
-        figure is adjustable under Model Assumptions (Conversion Size). "Building sq ft" uses total
-        floor area across all stories when recorded, otherwise the ground-floor footprint.</p>
-        <p><strong>Who's eligible:</strong> any residential parcel — Texas assessor A or B codes
-        (excluding vacant A7/A8), or a land-use description containing "residential." Commercial
-        parcels are never eligible. There is no unit-count ceiling and no lot-coverage screen. A
-        residential building recorded with 0 units (an assessor code the unit mapping doesn't cover)
-        is treated as holding 1, so an existing home isn't credited as though it were empty.</p>
-        <p><strong>Why a parcel might still net zero:</strong> a house under 1,000 sq ft can't yield
-        a second 500 sq ft unit; a building already at one unit per 500 sq ft or denser has nothing
-        left to carve out; roughly 20–30% of residential parcels (varies by district) have no recorded
-        building size at all, which the parcel popup flags as a data gap rather than a judgment.</p>
-        <p><strong>Historic districts do NOT block this policy</strong> — unlike every other
-        intervention, Mansion Conversion is exempt from "Protect Historic Districts." It's an
-        interior reconfiguration with no exterior or footprint change, so it isn't what historic
-        review governs, and real informal conversions are common in exactly these older,
-        larger-home neighborhoods. (An earlier version excluded historic parcels from this policy
-        entirely, since historic protection blocked the whole parcel from every calculation rather
-        than being applied per-policy — that silently zeroed conversions across entire historic
-        neighborhoods.)</p>
-        <p><strong>No parking required — and that's the point of this tool.</strong> Missing Middle
-        and SB840 Baseline both assume one off-street parking space per unit (300 sq ft each) unless
-        "Eliminate Parking Minimums" is also checked, which measurably constrains their yield.
-        Mansion Conversion carries no such assumption at all, in either direction — its formula is
-        purely building size ÷ conversion size, unaffected by whether parking reform is active. That
-        absence of a parking constraint is what makes it a genuinely different, often more valuable
-        lever than new construction, not a detail buried in a formula. Because it already assumes no
-        parking, the separate 20% "Eliminate Parking Minimums" unit boost is not applied to it either
-        — that would credit the same assumption twice.</p>
-        <p>(Earlier versions discounted floor area by 15% and divided by the 850 sq ft
-        new-construction unit size, so a 2,000 sq ft house yielded just 1 net unit and an 1,800 sq ft
-        house yielded 0. About 4,300 residential parcels read as "not eligible" purely from that
-        rounding. They also capped eligibility at 4 existing units.)</p>
-
-        <h3>Midrise's density cap, and why nothing is counted twice</h3>
-        <p>Midrise sizes its unit count from the building envelope (lot × 50% coverage × floors ÷
-        unit size), then caps the result at <strong>145 units per acre of land</strong> — El Paso's
-        stated maximum density. The cap matters because 145/acre is a <em>land</em> density that
-        already presumes a multi-story building: an earlier version of this model multiplied
-        145/acre <em>by</em> the floor count, implying 580 units/acre at 4 floors — roughly 4× the
-        stated maximum and ~5× Manhattan's overall density. At the default 4 floors the envelope
-        yields about 102 units/acre; the cap starts binding around 6 floors. Missing Middle and
-        SB840 Baseline now use this same parking-land deduction (see below), so this treatment is
-        consistent across all three new-construction policies.</p>
-        <p>Two double-counting rules follow from this. First, the 20% parking-reform boost is
-        <strong>not</strong> applied to Midrise units — Midrise already models freed parking land
-        directly by skipping its own parking deduction, an effect far larger than 20%, so applying
-        both would credit the same policy twice. Second, an earlier version also gave parking reform
-        its own standalone job formula, identical to Midrise's ground-floor job yield — meaning
-        checking "Eliminate Parking Minimums" alone, with no construction policy active at all, still
-        manufactured commercial jobs on every underutilized parcel citywide (jobs reached 100% of
-        target from parking alone under Vertical Mixed Use, with zero housing policies selected).
-        That standalone job formula is removed. Only Midrise generates jobs now; parking reform
-        boosts whatever construction is already happening, it doesn't invent construction of its own.</p>
-
-        <h3>Geographic constraints</h3>
-        <p>Historic district protection blocks new-construction and exterior-changing policies
-        (Lot Splits, Missing Middle, Midrise, SB840 Baseline) on parcels within historically
-        designated boundaries — except Mansion Conversion, which is exempt (see above).
-        Transit-corridor-only filtering and recorded deed restrictions can each be toggled too. Deed
-        restrictions, when enabled, are applied as a <strong>final override</strong> after all other
-        calculations — a single-family-only covenant caps a parcel at 1 unit and 0 jobs regardless of
-        scenario or policy.</p>
-
-        <h3>Key limitations</h3>
-        <ul>
-          <li>Estimates capacity, not predicted outcomes — land price, financing, owner
-              intent, and permitting timelines are not modeled.</li>
-          <li>Missing lot size defaults to 6,000 sq ft; missing building area defaults to
-              0 sq ft, which tends to count undocumented parcels as redevelopment-eligible —
-              treat totals in data-sparse areas with extra caution.</li>
-          <li>Deed-restriction coverage reflects recorded covenants in the dataset only —
-              informal or unrecorded restrictions are not captured.</li>
-          <li>"Eliminate Parking Minimums" can still show job yield under the Residential
-              Only scenario — this is intentional (parking reform is treated as an
-              infrastructure policy that enables ground-floor commercial regardless of the
-              dominant land use), not a bug.</li>
-          <li><strong>District 1's source data has a known gap:</strong> its parcel file
-              is currently missing existing-conditions data for every parcel (0 of 950),
-              unlike every other district. Any parcel with zero data on every field shows
-              a warning in its popup. District 1's totals should not be trusted until the
-              source file is regenerated with the same data join the other districts have
-              — see the README's "Known Data Quality Issues" section.</li>
-        </ul>
-
-        <div class="caveat">
-          <strong>Why the headline number is conservative:</strong> a parcel eligible for
-          both a lot split and missing-middle housing is only credited with the larger of
-          the two, never both. The "up to" figure in the banner shows what the same parcels
-          would yield if every eligible policy stacked additively instead — treat the true
-          answer as somewhere between the two.
-        </div>
-      </div>
-    </div>
-
-    <div id="map">
-        <div class="map-legend">
-            <div class="legend-title">Simulation Yields</div>
-
-            <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Housing</div>
-            <div class="legend-row"><div class="color-box" style="background: #16302f;"></div> High (&gt;16 units)</div>
-            <div class="legend-row"><div class="color-box" style="background: #2d5d5e;"></div> Medium (5–16 units)</div>
-            <div class="legend-row"><div class="color-box" style="background: #a9c9c6;"></div> Low (1–4 units)</div>
-
-            <div style="height: 6px;"></div>
-            <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Jobs</div>
-            <div class="legend-row"><div class="color-box" style="background: #6b2c0f;"></div> High (&gt;10 jobs)</div>
-            <div class="legend-row"><div class="color-box" style="background: #b5541f;"></div> Medium (3–10 jobs)</div>
-            <div class="legend-row"><div class="color-box" style="background: #e8bc93;"></div> Low (1–2 jobs)</div>
-
-            <div style="height: 6px;"></div>
-            <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Mixed Use</div>
-            <div class="legend-row"><div class="color-box" style="background: #4a3355;"></div> High density mixed</div>
-            <div class="legend-row"><div class="color-box" style="background: #6b4a7a;"></div> Medium density mixed</div>
-            <div class="legend-row"><div class="color-box" style="background: #c7b3cf;"></div> Low density mixed</div>
-
-            <div style="height: 6px;"></div>
-            <div class="legend-row"><div class="color-box" style="background: #d8cfc0;"></div> No Net Change</div>
-        </div>
-    </div>
-
-    </div> <!-- /#main-row -->
-
-    <script>
-        // Collapsible sidebar sections (e.g. Filters & Constraints)
-        function toggleSection(headerEl) {
-            headerEl.classList.toggle('collapsed');
-            const body = headerEl.nextElementSibling;
-            if (body && body.classList.contains('collapsible-body')) {
-                body.classList.toggle('collapsed');
-            }
-        }
-
-        // Address / Parcel ID search. Tries an exact PIDN match against loaded
-        // parcels first (instant, no network call); falls back to OpenStreetMap's
-        // free Nominatim geocoder, biased to El Paso, for addresses and places.
-        let searchMarker = null;
-        async function searchLocation() {
-            const input = document.getElementById('parcelSearch');
-            const statusEl = document.getElementById('searchStatus');
-            const query = input.value.trim();
-            if (!query) return;
-            statusEl.textContent = 'Searching...';
-            statusEl.style.color = 'var(--text-muted)';
-
-            // 1. Exact parcel ID (PIDN) match against currently loaded parcels
-            if (geojsonLayer) {
-                let foundLayer = null;
-                geojsonLayer.eachLayer(l => {
-                    if (foundLayer || !l.feature) return;
-                    const pidn = l.feature.properties.pidn;
-                    if (pidn && String(pidn).toUpperCase() === query.toUpperCase()) foundLayer = l;
-                });
-                if (foundLayer) {
-                    const bounds = foundLayer.getBounds();
-                    map.fitBounds(bounds, { maxZoom: 18 });
-                    setTimeout(() => foundLayer.openPopup(), 400);
-                    statusEl.textContent = 'Found matching parcel (PIDN).';
-                    statusEl.style.color = 'var(--success)';
-                    return;
-                }
-            }
-
-            // 2. Fall back to geocoding as an address, biased to El Paso
-            try {
-                const bias = query.toLowerCase().includes('el paso') ? query : query + ', El Paso, TX';
-                const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&viewbox=-106.72,31.95,-106.20,31.60&bounded=1&q=' + encodeURIComponent(bias);
-                const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-                const results = await res.json();
-                if (results && results.length > 0) {
-                    const { lat, lon, display_name } = results[0];
-                    map.setView([parseFloat(lat), parseFloat(lon)], 17);
-                    if (searchMarker) map.removeLayer(searchMarker);
-                    searchMarker = L.marker([parseFloat(lat), parseFloat(lon)]).addTo(map)
-                        .bindPopup(`<div style="font-size:12px;">${display_name}</div>`).openPopup();
-                    statusEl.textContent = 'Found address — click a nearby parcel for details.';
-                    statusEl.style.color = 'var(--success)';
-                } else {
-                    statusEl.textContent = 'No match found for that address or parcel ID.';
-                    statusEl.style.color = 'var(--jobs)';
-                }
-            } catch (e) {
-                statusEl.textContent = 'Search unavailable right now — try again in a moment.';
-                statusEl.style.color = 'var(--jobs)';
-            }
-        }
-
-        // Preset scenarios — reproducible headline configurations
-        function loadPreset(kind) {
-            // The preferred, tailored interventions — SB840 Baseline is deliberately excluded from
-            // "Full Reform Package": it represents the blunt, out-of-scale outcome these interventions
-            // exist to avoid, not one more policy to bundle alongside them.
-            const reformPolicyIds = ['adu', 'lot_splits', 'mansion_conversions', 'missing_middle_4_8', 'missing_middle_9_16', 'midrise', 'no_parking'];
-            const checkOn = (kind === 'full');
-            reformPolicyIds.forEach(id => {
-                const cb = document.querySelector(`.policy-cb[value="${id}"]`);
-                if (cb) cb.checked = checkOn;
-            });
-            // Always explicitly off on either preset — never part of the recommended package,
-            // and Reset should clear it if the user had checked it manually.
-            const sb840cb = document.querySelector('.policy-cb[value="sb840_baseline"]');
-            if (sb840cb) sb840cb.checked = false;
-            document.getElementById('baseScenario').value = 'current';
-
-            // Reset assumptions to their documented defaults so this is a reproducible,
-            // citable configuration rather than whatever the sliders happened to be at.
-            const setSlider = (id, val, labelId, suffix, toLocale) => {
-                const el = document.getElementById(id);
-                el.value = val;
-                document.getElementById(labelId).innerText = (toLocale ? Number(val).toLocaleString() : val) + (suffix || '');
-            };
-            setSlider('absorption', 8, 'absorption-val', '%');
-            setSlider('unitSizeAssumption', 850, 'unitSize-val', '');
-            setSlider('jobSizeAssumption', 1000, 'jobSize-val', '', true);
-            setSlider('conversionSizeAssumption', 500, 'conversionSize-val', '');
-            setSlider('parkingBoostAssumption', 20, 'parkingBoost-val', '%');
-
-            runSimulation();
-        }
-
-
-        // Update UI Text for the slider
-        document.getElementById('absorption').addEventListener('input', function(e) {
-            document.getElementById('absorption-val').innerText = e.target.value + '%';
-        });
-        document.getElementById('unitSizeAssumption').addEventListener('input', function(e) {
-            document.getElementById('unitSize-val').innerText = e.target.value;
-        });
-        document.getElementById('conversionSizeAssumption').addEventListener('input', function(e) {
-            document.getElementById('conversionSize-val').innerText = e.target.value;
-        });
-        document.getElementById('jobSizeAssumption').addEventListener('input', function(e) {
-            document.getElementById('jobSize-val').innerText = parseInt(e.target.value).toLocaleString();
-        });
-        document.getElementById('parkingBoostAssumption').addEventListener('input', function(e) {
-            document.getElementById('parkingBoost-val').innerText = e.target.value + '%';
-        });
-
-        // Initialize Map
-        const map = L.map('map', { preferCanvas: true }).setView([31.7619, -106.4850], 11);
-        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-            maxZoom: 19,
-            maxNativeZoom: 16
-        }).addTo(map);
-        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            maxNativeZoom: 16
-        }).addTo(map);
-
-        // FIX: In the flex/header layout, the map's container can settle to its
-        // final size slightly after Leaflet's initial size measurement (e.g. once
-        // web fonts finish loading and the header reflows). A stale cached size
-        // makes click→coordinate hit-testing silently miss parcels — popups never
-        // open even though everything looks correct. Force a re-measure at every
-        // point the layout could have shifted.
-        setTimeout(() => map.invalidateSize(), 200);
-        if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(() => map.invalidateSize());
-        }
-        window.addEventListener('resize', () => map.invalidateSize());
-
-        let geojsonLayer = null;
-        let lastRunResults = null;
-        let savedScenarios = [];
-        let historicPolygons = [];
-        let deedRestrictionPolygons = [];
-        let transitPolygons = [];
-        // Bbox-indexed versions for fast spatial filtering
-        let historicIndexed = [];
-        let deedIndexed = [];
-        let transitIndexed = [];
-        
-        const DATA_PATH = 'data/';
-
-        // Fast bounding-box check before expensive Turf spatial ops
-        function bboxContains(bbox, pt) {
-            const [minX, minY, maxX, maxY] = bbox;
-            const [x, y] = pt.geometry.coordinates;
-            return x >= minX && x <= maxX && y >= minY && y <= maxY;
-        }
-
-        // Pre-compute bboxes for a polygon array so we skip Turf for far-away features
-        function withBbox(features) {
-            return features.map(f => {
-                try { return { feature: f, bbox: turf.bbox(f) }; }
-                catch(e) { return { feature: f, bbox: null }; }
-            });
-        }
-
-        // Fetch with LFS detection — falls back to GitHub API media URL if pointer text is returned
-        async function fetchGeoJSONSafe(url) {
-            try {
-                const res = await fetch(url);
-                if (!res.ok) return [];
-                const text = await res.text();
-                // LFS pointer files start with "version https://git-lfs"
-                if (text.trimStart().startsWith('version https://git-lfs')) {
-                    console.warn(`LFS pointer detected for: ${url} — file must be removed from LFS to load at runtime.`);
-                    return [];
-                }
-                const data = JSON.parse(text);
-                if (data && data.features) return data.features;
-            } catch(e) { console.warn(`Missing or invalid: ${url}`); }
-            return [];
-        }
-
-        // Fetch up to `limit` promises concurrently, returning results in order
-        async function fetchBatched(tasks, limit = 3) {
-            const results = new Array(tasks.length).fill(null);
-            let idx = 0;
-            async function worker() {
-                while (idx < tasks.length) {
-                    const i = idx++;
-                    try { results[i] = await tasks[i](); }
-                    catch(e) { results[i] = null; }
-                }
-            }
-            const workers = [];
-            for (let w = 0; w < Math.min(limit, tasks.length); w++) workers.push(worker());
-            await Promise.all(workers);
-            return results;
-        }
-
-        async function loadData() {
-            try {
-                // Load support layers sequentially — they're small and needed before parcel tagging
-                document.getElementById('loading-text').innerText = 'Loading support layers...';
-                historicPolygons  = await fetchGeoJSONSafe(DATA_PATH + 'historic.geojson');
-                transitPolygons   = await fetchGeoJSONSafe(DATA_PATH + 'transit_corridors.geojson');
-                const [covenants1, covenants2] = await Promise.all([
-                    fetchGeoJSONSafe(DATA_PATH + 'covenants1.geojson'),
-                    fetchGeoJSONSafe(DATA_PATH + 'covenants2.geojson')
-                ]);
-                deedRestrictionPolygons = [...covenants1, ...covenants2];
-
-                // Build bbox indexes for fast pre-filtering
-                historicIndexed = withBbox(historicPolygons);
-                deedIndexed     = withBbox(deedRestrictionPolygons);
-                transitIndexed  = withBbox(transitPolygons);
-
-                // Render Representative Districts (non-blocking, best-effort)
-                fetch(DATA_PATH + 'RepresentativeDistricts.geojson')
-                    .then(r => r.ok ? r.json() : null)
-                    .then(repData => {
-                        if (repData) L.geoJSON(repData, {
-                            style: { color: '#94a3b8', weight: 1.5, fillOpacity: 0, interactive: false, dashArray: '4, 4' }
-                        }).addTo(map);
-                    }).catch(() => {});
-
-                // Load all 8 parcel files in batches of 3 to avoid GitHub Pages HTTP/2 connection limits
-                document.getElementById('loading-text').innerText = 'Loading parcel data (this may take a moment)...';
-                const parcelTasks = [];
-                for (let i = 1; i <= 8; i++) {
-                    const d = i;
-                    parcelTasks.push(() =>
-                        fetch(`${DATA_PATH}Ready_Parcels_D${d}.geojson`)
-                            .then(r => r.ok ? r.json() : null)
-                            .then(data => { if (data && data.features) { data._d = d; return data; } return null; })
-                            .catch(() => null)
-                    );
-                }
-                const parcelResults = await fetchBatched(parcelTasks, 3);
-
-                let rawData = { type: "FeatureCollection", features: [] };
-                parcelResults.forEach(res => {
-                    if (res && res.features) {
-                        res.features.forEach(f => {
-                            if (f.geometry && f.geometry.coordinates) {
-                                if (!f.properties) f.properties = {};
-                                f.properties._district = String(res._d);
-                                rawData.features.push(f);
-                            }
-                        });
-                    }
-                });
-
-                if (rawData.features.length === 0) throw new Error("No parcels loaded.");
-
-                // Load footprints AFTER parcels — deferred so map becomes interactive sooner.
-                // They render in the background without blocking simulation startup.
-                const footprintTasks = [];
-                for (let i = 1; i <= 8; i++) {
-                    const d = i;
-                    footprintTasks.push(() =>
-                        fetch(`${DATA_PATH}footprints_d${d}.geojson`)
-                            .then(r => r.ok ? r.json() : null)
-                            .then(res => {
-                                if (res && res.features) {
-                                    L.geoJSON(res, {
-                                        renderer: L.canvas({ tolerance: 1 }),
-                                        style: { fillColor: '#94a3b8', color: '#64748b', weight: 0.5, fillOpacity: 0.5, interactive: false }
-                                    }).addTo(map);
-                                }
-                            }).catch(() => null)
-                    );
-                }
-                // Fire footprints as a background batch — don't await so the map loads first
-                fetchBatched(footprintTasks, 2);
-
-                document.getElementById('loading-text').innerText = "Running spatial analysis...";
-                await new Promise(resolve => setTimeout(resolve, 50));
-
-                // Spatial tagging with bbox pre-filter for speed
-                rawData.features.forEach(feature => {
-                    const p = feature.properties;
-                    let pt = null;
-                    try {
-                        const getPt = () => { if (!pt) pt = turf.centroid(feature); return pt; };
-
-                        p._inHistoric = (String(p.in_historic).toUpperCase() === 'Y' || String(p.in_historic).toUpperCase() === 'TRUE');
-                        if (!p._inHistoric && historicIndexed.length > 0) {
-                            const c = getPt();
-                            p._inHistoric = historicIndexed.some(({ feature: poly, bbox }) =>
-                                (!bbox || bboxContains(bbox, c)) && turf.booleanPointInPolygon(c, poly)
-                            );
-                        }
-
-                        p._inTransit = (String(p.transit_corridor).toUpperCase() === 'Y' || String(p.transit_corridor).toUpperCase() === 'TRUE');
-                        if (!p._inTransit && transitIndexed.length > 0) {
-                            const c = getPt();
-                            p._inTransit = transitIndexed.some(({ feature: geom, bbox }) => {
-                                try {
-                                    if (bbox && !bboxContains(bbox, c)) return false;
-                                    if (geom.geometry.type.includes('Polygon')) {
-                                        return turf.booleanPointInPolygon(c, geom);
-                                    } else if (geom.geometry.type.includes('Line')) {
-                                        return turf.pointToLineDistance(c, geom, {units: 'miles'}) <= 0.5;
-                                    }
-                                } catch(e){}
-                                return false;
-                            });
-                        }
-                        
-                        p._hasDeedRestriction = false;
-                        p._deedProps = {};
-                        if (deedIndexed.length > 0) {
-                            const c = getPt();
-                            for (let { feature: poly, bbox } of deedIndexed) {
-                                if (bbox && !bboxContains(bbox, c)) continue;
-                                if (turf.booleanPointInPolygon(c, poly)) {
-                                    // Only a real, affirmative covenant counts — many polygons in this
-                                    // layer are unrestricted reference plats (COVENANT: 'N'), which were
-                                    // previously flagged as restricted just for spatial overlap.
-                                    const covProps = poly.properties || {};
-                                    const covenantFlag = String(covProps.COVENANT || '').trim().toUpperCase();
-                                    if (covenantFlag === 'Y') {
-                                        p._hasDeedRestriction = true;
-                                        p._deedProps = covProps;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    } catch(err) {}
-                });
-
-                geojsonLayer = L.geoJSON(rawData, {
-                    renderer: L.svg(),
-                    style: function() { return { fillColor: '#cbd5e1', fillOpacity: 0.15, stroke: true, color: '#94a3b8', weight: 0.5, opacity: 0.3 }; }
-                }).addTo(map);
-
-                document.getElementById('loading-overlay').style.display = 'none';
-                map.invalidateSize();
-                runSimulation();
-
-            } catch (error) {
-                console.error("Initialization Error:", error);
-                document.getElementById('loading-overlay').innerHTML = `
-                    <h2 style='color:#ef4444; margin-bottom: 10px;'>Map Data Error</h2>
-                    <p style='color:#334155;'>Check data folder paths or file naming.</p>
-                `;
-            }
-        }
-
-        // Trivariate symbology:
-        //   Housing only  → Teals     (low: 1–4 units, medium: 5–16, high: >16)
-        //   Jobs only     → Terracotta (low: 1–2 jobs,  medium: 3–10, high: >10)
-        //   Mixed use     → Plum      (low/medium/high by combined total)
-        // Thresholds calibrated to actual policy yield ranges:
-        //   ADU/lot splits = 1 unit; missing middle tops at 16; midrise scales with lot size
-        //   Parking alone at 6,000 sqft lot ≈ 3 jobs; larger lots scale up proportionally
-        function getTrivariateStyle(u, j) {
-            if (u < 0.5 && j < 0.5) return { fillColor: '#d8cfc0', color: '#b3a790', fillOpacity: 0.15, opacity: 0.3, weight: 0.5 };
-
-            let fColor, sColor;
-            const isMixed = u >= 0.5 && j >= 0.5;
-
-            if (isMixed) {
-                // Mixed use — plum, graduated by combined total
-                const total = u + j;
-                if      (total > 20) { fColor = '#4a3355'; sColor = '#33223d'; }
-                else if (total > 8)  { fColor = '#6b4a7a'; sColor = '#573d64'; }
-                else                 { fColor = '#c7b3cf'; sColor = '#a189ac'; }
-
-            } else if (u >= j) {
-                // Housing dominant — teals, graduated by unit count
-                if      (u > 16) { fColor = '#16302f'; sColor = '#0d1f1e'; }
-                else if (u > 4)  { fColor = '#2d5d5e'; sColor = '#234848'; }
-                else             { fColor = '#a9c9c6'; sColor = '#7fa8a3'; }
-
-            } else {
-                // Jobs dominant — terracotta, graduated by job count
-                if      (j > 10) { fColor = '#6b2c0f'; sColor = '#4a1e0a'; }
-                else if (j > 2)  { fColor = '#b5541f'; sColor = '#8a3717'; }
-                else             { fColor = '#e8bc93'; sColor = '#d99e69'; }
-            }
-
-            return { fillColor: fColor, color: sColor, fillOpacity: 0.8, opacity: 0.9, weight: 0.5 };
-        }
-
-        // ENGINE: Calculations
-        function runSimulation() {
-            if (!geojsonLayer) return;
-
-            try {
-                const absorptionRate = parseFloat(document.getElementById('absorption').value) / 100;
-                const unitSizeAssumption = parseFloat(document.getElementById('unitSizeAssumption').value) || 850;
-                const jobSizeAssumption = parseFloat(document.getElementById('jobSizeAssumption').value) || 1000;
-                // Mansion Conversion: 1 unit per this many sq ft of an existing residential building.
-                const conversionSqftPerUnit = parseFloat(document.getElementById('conversionSizeAssumption').value) || 500;
-                const parkingBoostMultiplier = 1 + (parseFloat(document.getElementById('parkingBoostAssumption').value) || 20) / 100;
-
-                // Formula constants — documented assumptions, not sourced to El Paso-specific data
-                // (see README / methodology modal for full reasoning on each).
-                const MIN_SPLIT_LOT_SIZE = 3500;       // sq ft — a lot split must leave two buildable halves
-                const CITYWIDE_DENSITY_PER_ACRE = 145;  // units/acre — citywide density standard; used by Midrise (Missing Middle and SB840 Baseline use the floors × coverage ÷ unit-size envelope instead)
-                const SQFT_PER_ACRE = 43560;
-                const PARKING_SQFT_PER_SPACE = 300;     // sq ft consumed per required off-street parking space, at an assumed 1 space/unit
-
-                // Missing Middle, per SB840: on parcels with 1-3 existing units (single-family,
-                // duplex, triplex), the city can impose additional limits via a "workaround" —
-                // capped at 35 ft height (~3 floors at a standard ~11.7 ft floor-to-floor height,
-                // consistent with the Missing Middle typology's 3-floor cap) with a density bonus.
-                // On every other parcel (vacant, or already 4+ units), SB840 mandates the citywide
-                // max density (145/acre) outright — the city has no discretion to limit it further.
-                const MISSING_MIDDLE_WORKAROUND_FLOORS = 3;
-                const MISSING_MIDDLE_COVERAGE = 0.5; // consistent with the coverage assumption used elsewhere in the model
-                // SB840's trigger: the bill applies to anything permitting MORE than 3 units, so
-                // the density-bonus "workaround" can only be offered as an alternative to properties
-                // currently at 3 units or fewer. Missing Middle (both tiers) and SB840 Baseline are
-                // exact complements across this line, so they key off one constant and stay mutually
-                // exclusive. Texas assessor codes: A1 single-family=1, A51/B1 duplex=2, A53/B3
-                // triplex=3 are inside; A54/B4/B9 quadplex=4 and above are outside (SB840 governs them).
-                const SB840_TRIGGER_MAX_UNITS = 3;
-                const SB840_MANDATED_FLOORS = 4; // the state-mandated minimum wherever >3 units are allowed — applies to the flat SB840 baseline and sets Midrise's floor-count minimum
-                const targetDistrict = document.getElementById('districtFilter').value;
-                const applyTransitOnly = document.getElementById('transitOnly').checked;
-                const applyHistoricProtection = document.getElementById('protectHistoric').checked;
-                const applyCovenants = document.getElementById('applyDeedRestrictions').checked;
-                const baseScenario = document.getElementById('baseScenario').value;
-                const midriseFloors = Math.max(SB840_MANDATED_FLOORS, parseInt(document.getElementById('midrise_floors').value) || 5);
-
-                const activePolicies = Array.from(document.querySelectorAll('.policy-cb:checked')).map(cb => cb.value);
-                const hasParkingBoost = activePolicies.includes('no_parking');
-
-                let totalNetUnits = 0;
-                let totalNetJobs = 0;
-                let totalStackedUnits = 0;
-                let totalStackedJobs = 0;
-                let districtTotals = { '1':{u:0, j:0}, '2':{u:0, j:0}, '3':{u:0, j:0}, '4':{u:0, j:0}, '5':{u:0, j:0}, '6':{u:0, j:0}, '7':{u:0, j:0}, '8':{u:0, j:0} };
-
-                geojsonLayer.eachLayer(function(layer) {
-                    if (!layer.feature || !layer.feature.properties) return;
-                    
-                    const props = layer.feature.properties;
-                    let finalUnits = 0;
-                    let finalJobs = 0;
-
-                    if (targetDistrict !== 'all' && props._district !== targetDistrict) {
-                        layer.setStyle({ opacity: 0, fillOpacity: 0, stroke: false }); return; 
-                    }
-
-                    // Data extraction — exact field names verified against the actual parcel schema.
-                    // (Previously used loose substring matching against assumed field names like
-                    // 'building_sqft'/'lot_sqft' that don't exist in this dataset — it silently matched
-                    // the wrong fields or nothing at all, e.g. bldgSqft was never populated because no
-                    // field name contains "bldg" or "build". This is why every parcel appeared vacant.)
-                    const existingUnits = parseFloat(props.existing_units) || 0;
-                    let lotSqft = parseFloat(props.targetlotarea) || 0;
-                    const bldgSqft = parseFloat(props.footprint_sqft) || 0;
-                    const interiorSqft = parseFloat(props.interior_sqft) || 0;
-                    // state_cd_clean is the real Texas CAD assessor code (e.g. "A1", "F2") when present.
-                    // It's null for a meaningful share of parcels in this dataset — use_desc is a plain-English
-                    // fallback/supplement that's populated far more often.
-                    const propertyTag = props.state_cd_clean ? String(props.state_cd_clean).trim().toUpperCase() : "";
-                    const useDesc = props.use_desc && props.use_desc !== 'Unknown' ? props.use_desc : null;
-                    if (lotSqft <= 0) lotSqft = 6000; 
-
-                    const isProtectedHistoric = (applyHistoricProtection && props._inHistoric);
-                    const isOutsideTransit = (applyTransitOnly && !props._inTransit);
-                    let meetsUnderutilized = false;
-                    let parcelIsResidential = false; // hoisted so the popup uses the same classification as the engine
-
-                    // FIX 1: Removed the "activePolicies.length > 0" requirement from this main block
-                    // This allows Base Scenarios to calculate independently
-                    // Historic protection no longer excludes the parcel from this whole block — it's
-                    // applied selectively inside the policy loop below, per policy. Mansion Conversion
-                    // is exempt: it's an interior reconfiguration with no exterior or footprint change,
-                    // so it doesn't trigger the exterior-alteration review historic protection exists
-                    // for. Everything else that adds new construction (Lot Splits, Missing Middle,
-                    // Midrise, SB840 Baseline) still respects it. (Previously the whole parcel was
-                    // skipped when historic-protected — checked by default — which silently zeroed
-                    // Mansion Conversion across entire historic neighborhoods, even though real
-                    // informal conversions are common in exactly these older, larger-home areas.)
-                    if (!isOutsideTransit) {
-                        
-                        // FIX 2: Relaxed the "Underutilized" requirement for Mixed and Commercial scenarios
-                        // so jobs aren't immediately disqualified just because a building exists on the lot.
-                        // Vacant: residential vacant lots (A7, A8), platted vacant lots (C1-C10 series),
-                        // rural/ag/desert acreage (D series) — all per Texas assessor state_cd classification
-                        const isVacant = /^A[78]$|^C(1$|10$|2$|3$|6$|7$|8$|9$)|^D/.test(propertyTag);
-                        // Broaden match: trim and accept F1, F2, and any F1x/F2x variants
-                        let isCommercial = /^F[12]/.test(propertyTag.trim());
-                        let isResidential = /^[AB]/.test(propertyTag) && !isVacant;
-                        // Fallback for state_cd codes the regexes above don't recognize (e.g. "XV-C" —
-                        // exempt/institutional parcels like churches, schools, government buildings —
-                        // or utility codes like "J2"). Previously these matched neither isCommercial nor
-                        // isResidential and fell through to a branch that left both units and jobs
-                        // unfiltered, which could make a single-use property appear as "mixed use" with
-                        // no real basis. use_desc is a plainer, more reliable signal in these cases.
-                        if (!isVacant && !isCommercial && !isResidential && useDesc) {
-                            const u = useDesc.toUpperCase();
-                            if (u.includes('COMMERCIAL') || u.includes('INDUSTRIAL') || u.includes('UTILIT')) isCommercial = true;
-                            else if (u.includes('RESIDENTIAL')) isResidential = true;
-                        }
-                        parcelIsResidential = isResidential;
-                        const bldgRatio = (lotSqft > 0) ? (bldgSqft / lotSqft) : 1;
-                        
-                        const isUpzoning = (baseScenario === 'mixed' || baseScenario === 'commercial');
-                        const coverageThreshold = (isUpzoning || isCommercial) ? 0.45 : 0.15;
-                        meetsUnderutilized = isVacant || (bldgRatio < coverageThreshold) || (existingUnits === 0 && bldgSqft === 0);
-
-                        let maxNetUnits = 0;
-                        let maxNetJobs = 0;
-                        let stackedUnits = 0;
-                        let stackedJobs = 0;
-                        props._winningRuleUnits = null;
-                        props._winningRuleJobs = null;
-
-                        // Shared by Missing Middle, SB840 Baseline, and Midrise: if off-street parking
-                        // is still required (Eliminate Parking Minimums NOT active), reduce achievable
-                        // units by however much land that parking would consume — 300 sq ft/space, at
-                        // an assumed 1 space per unit (only the sq-ft-per-space figure was given; the
-                        // ratio is this model's assumption). Mansion Conversion does NOT use this —
-                        // it's the one intervention modeled with no added parking requirement at all,
-                        // which is what makes it a genuinely different tool from the other two.
-                        const applyParkingConstraint = (grossUnits) => {
-                            if (activePolicies.includes('no_parking') || grossUnits <= 0) return grossUnits;
-                            const parkingAreaNeeded = grossUnits * PARKING_SQFT_PER_SPACE;
-                            const remainingLandFraction = Math.max(0, (lotSqft - parkingAreaNeeded) / lotSqft);
-                            return Math.floor(grossUnits * remainingLandFraction);
-                        };
-
-                        activePolicies.forEach(policy => {
-                            // Historic protection blocks everything that adds new construction or
-                            // changes a building's exterior/footprint. Mansion Conversion is the one
-                            // exception — an interior reconfiguration that historic review doesn't
-                            // govern the way it governs new construction.
-                            if (isProtectedHistoric && policy !== 'mansion_conversions') return;
-                            let net_u = 0, net_j = 0, ruleLabel = null;
-
-                            // --- ADU: any existing single-family home (exactly 1 existing unit)
-                            // can add one accessory unit. No lot-size minimum — a real ADU-enabling
-                            // ordinance applies regardless of lot size; buildability at the margins
-                            // is the homeowner's problem, not a citywide capacity assumption.
-                            if (policy === 'adu' && existingUnits === 1) {
-                                net_u = 1; ruleLabel = 'ADU';
-                            }
-
-                            // --- Lot Splits: eligible only if the lot is at least double the minimum
-                            // buildable lot size (3,500 sq ft — a documented assumption, not derived
-                            // from El Paso's actual subdivision code). The lot becomes two buildable
-                            // lots; net yield subtracts whatever's already there.
-                            else if (policy === 'lot_splits' && lotSqft >= (MIN_SPLIT_LOT_SIZE * 2) && meetsUnderutilized) {
-                                net_u = Math.max(0, 2 - existingUnits);
-                                ruleLabel = 'Lot Split';
-                            }
-
-                            // --- Mansion Conversion: a square-footage rule, with NO parking required.
-                            // Any residential building (assessor A/B codes, or a use description
-                            // containing RESIDENTIAL) can be divided into more units than it has now:
-                            //     gross units = floor(building sq ft ÷ conversion sq ft per unit)
-                            //     net units   = gross − existing units (never below 0)
-                            // Building sq ft favors interior_sqft (all floors) over footprint_sqft
-                            // (ground floor only). Default 500 sq ft/unit, adjustable in the sidebar.
-                            // No unit-count ceiling and no underutilization screen: whether a house
-                            // can be carved into more units depends on the building, not on lot
-                            // coverage, and this program is positioned as its own tool — separate
-                            // from SB840's 3-unit trigger — precisely because it carries no parking
-                            // requirement. A residential building recorded with 0 existing units
-                            // (an unmapped assessor code) is treated as holding 1, so a structure
-                            // that clearly exists isn't credited as if it were empty.
-                            // Commercial parcels are never eligible — isResidential excludes them.
-                            // (Earlier versions discounted floor area 15% and divided by the 850 sq ft
-                            // new-construction unit size, so a 2,000 sq ft house yielded 2 gross − 1
-                            // existing = 1 net, and an 1,800 sq ft house yielded 0 — about 4,300
-                            // residential parcels read as "not eligible" purely from that rounding.)
-                            else if (policy === 'mansion_conversions' && isResidential) {
-                                const buildingSqft = interiorSqft > 0 ? interiorSqft : bldgSqft;
-                                if (buildingSqft > 0) {
-                                    const gross = Math.floor(buildingSqft / conversionSqftPerUnit);
-                                    const existingForConversion = Math.max(existingUnits, 1);
-                                    net_u = Math.max(0, gross - existingForConversion);
-                                    ruleLabel = 'Mansion Conversion';
-                                }
-                            }
-
-                            // --- Missing Middle (both tiers): a density-bonus program offered to
-                            // parcels with 1-3 existing units (single-family, duplex, triplex) per
-                            // SB840's "workaround" — 35 ft height (~3 floors), 50% coverage, divided
-                            // by the adjustable unit size assumption gives the buildable envelope's
-                            // total unit count. Existing units are subtracted FIRST to get the
-                            // envelope's additional capacity, THEN that's capped at 8 or 16 — so the
-                            // cap represents the bonus granted (up to and including 8, or up to and
-                            // including 16 additional units), not a gross count reduced afterward.
-                            // Not eligible on vacant land or parcels already at 4+ units — those
-                            // aren't the 1-3 unit parcels this bonus program is offered to.
-                            // Requires one off-street parking space per unit unless "Eliminate
-                            // Parking Minimums" is also checked — see applyParkingConstraint above.
-                            // This is what gives Mansion Conversion (no parking requirement at all)
-                            // a genuine advantage over this program, not just a naming difference.
-                            else if (policy === 'missing_middle_4_8' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
-                                const envelopeUnits = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption));
-                                const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
-                                net_u = Math.min(8, additionalCapacity);
-                                ruleLabel = 'Missing Middle (max 8)';
-                            }
-                            else if (policy === 'missing_middle_9_16' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
-                                const envelopeUnits = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption));
-                                const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
-                                net_u = Math.min(16, additionalCapacity);
-                                ruleLabel = 'Missing Middle (max 16)';
-                            }
-
-                            // --- SB840 Baseline: the flat state mandate for everything that ISN'T
-                            // eligible for the Missing Middle bonus program above — commercial parcels,
-                            // vacant land, and anything already at 4+ units (quadplex or larger, or
-                            // plainly multifamily/multiplex). SB840 requires these be allowed 4 floors
-                            // (the state-mandated minimum, not the workaround's reduced 35 ft/~3 floors)
-                            // and the citywide max density. Applying the same minimum-unit-size approach
-                            // as Missing Middle, just at the state's actual mandated floor count.
-                            // Eligibility is simply "not a 1-3 unit parcel": that leaves vacant land
-                            // (0 units), parcels at 4+ units, and commercial parcels — exactly the
-                            // categories SB840's flat mandate covers. (An earlier version also
-                            // checked isCommercial separately here, which was redundant: any parcel
-                            // passing the 1-3 unit guard already falls in one of those categories.)
-                            // Requires one off-street parking space per unit unless "Eliminate
-                            // Parking Minimums" is also checked — see applyParkingConstraint above.
-                            else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS)) {
-                                const gross = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption));
-                                net_u = Math.max(0, gross - existingUnits);
-                                ruleLabel = 'SB840 Baseline';
-                            }
-
-
-                            // --- Midrise / Vertical Mixed Use: uses the same floor-area envelope
-                            // formula as Missing Middle and SB840 Baseline — lot × coverage × floors
-                            // ÷ unit size — then capped at the citywide maximum density (145 units
-                            // per ACRE of land). The cap matters: 145/acre is a LAND density that
-                            // already presumes a multi-story building, so an earlier version that
-                            // multiplied 145/acre BY the floor count implied 580 units/acre at 4
-                            // floors — about 4x the stated citywide maximum and ~5x Manhattan's
-                            // overall density. The envelope formula scales correctly with floors;
-                            // the cap keeps the stated maximum binding.
-                            // If off-street parking is still required (the "Eliminate Parking
-                            // Minimums" policy is NOT active), the achievable count is reduced by
-                            // however much land that parking would consume — 300 sq ft/space, at an
-                            // assumed 1 space per unit (that ratio is our assumption; only the
-                            // sq-ft-per-space figure was given).
-                            else if (policy === 'midrise' && meetsUnderutilized) {
-                                const acres = lotSqft / SQFT_PER_ACRE;
-                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * midriseFloors) / unitSizeAssumption);
-                                const densityCap = Math.floor(CITYWIDE_DENSITY_PER_ACRE * acres);
-                                const gross_u = applyParkingConstraint(Math.min(envelopeUnits, densityCap));
-                                net_u = Math.max(0, gross_u - existingUnits);
-
-                                // Ground-floor commercial jobs — unchanged, independent of the
-                                // residential envelope calculation above.
-                                const footprint = lotSqft * 0.5;
-                                const net_j_candidate = Math.floor(footprint / jobSizeAssumption);
-                                if (baseScenario === 'residential') {
-                                    // residential: units only, never jobs
-                                    net_j = 0;
-                                } else if (baseScenario === 'commercial') {
-                                    // commercial: jobs only
-                                    net_u = 0;
-                                    net_j = net_j_candidate;
-                                } else {
-                                    // mixed and current: jobs always generated here;
-                                    // base scenario block below enforces single-use for 'current'
-                                    net_j = net_j_candidate;
-                                }
-                                ruleLabel = `Midrise (${midriseFloors} fl)`;
-                            }
-
-                            // Conservative (headline) accumulator — highest single intervention wins
-                            if (net_u > maxNetUnits) { maxNetUnits = net_u; if (net_u > 0) props._winningRuleUnits = ruleLabel; }
-                            if (net_j > maxNetJobs) { maxNetJobs = net_j; if (net_j > 0) props._winningRuleJobs = ruleLabel; }
-
-                            // Upper-bound accumulator — every eligible policy stacks additively
-                            stackedUnits += net_u;
-                            stackedJobs += net_j;
-                        });
-
-                        // PARKING BOOST: units only. Jobs are NOT boosted here — this used to also set
-                        // a job yield identical to Midrise's own ((lot × 0.5) ÷ job size), which meant
-                        // checking "Eliminate Parking Minimums" alone — with no job-producing policy
-                        // active — manufactured commercial jobs on every underutilized parcel citywide.
-                        // Only Midrise actually models ground-floor commercial construction; parking
-                        // reform boosts whatever construction is already happening; it doesn't invent
-                        // construction of its own. (Removed rather than gated, since it was fully
-                        // redundant with Midrise's own identical formula whenever Midrise was active.)
-                        if (hasParkingBoost && meetsUnderutilized) {
-                            const otherPolicies = activePolicies.filter(p => p !== 'no_parking');
-                            // Mansion and Midrise already model parking completely on their own —
-                            // Mansion by never requiring it, Midrise by deducting its actual land
-                            // footprint. Neither needs the generic floor below on top of that; without
-                            // this check the floor could still pull Mansion's total UP even though the
-                            // 1.2x multiplier was correctly suppressed for it (checked below), which
-                            // is why "Mansion + parking" and "Mansion alone" used to differ.
-                            const winning = props._winningRuleUnits || '';
-                            const parkingAlreadyModeled = winning.startsWith('Midrise') || winning.startsWith('Mansion');
-                            // The standalone floor parking alone would produce — used as a lower bound
-                            // below so that adding a second policy can never REDUCE units relative to
-                            // running parking reform by itself. (Previously, combining parking with a
-                            // policy that produces a small unit count of its own — e.g. a flat +1 from
-                            // ADUs — replaced this floor entirely with 1.2x that small number, which
-                            // could be less than the floor on a large lot: adding a policy made the
-                            // total go down. Fixed to take the larger of the two.)
-                            // Zero for historic parcels (general redevelopment capacity, not specific
-                            // to the Mansion exemption) and whenever Mansion/Midrise are already
-                            // driving the result (see above).
-                            const parkingAloneFloor = (baseScenario !== 'commercial' && !isProtectedHistoric && !parkingAlreadyModeled) ? (lotSqft / 5000) : 0;
-
-                            if (otherPolicies.length === 0) {
-                                if (baseScenario !== 'commercial') {
-                                    maxNetUnits = Math.max(maxNetUnits, parkingAloneFloor);
-                                    stackedUnits = Math.max(stackedUnits, parkingAloneFloor);
-                                }
-                            } else {
-                                // Parking boosts whatever use the scenario permits, but never below
-                                // what parking alone would have guaranteed on this lot.
-                                // EXCEPTION: Midrise already accounts for parking elimination directly
-                                // (it skips its own parking land deduction when no_parking is active,
-                                // which is a far larger effect than 20%). Applying the multiplier on
-                                // top would count the same policy benefit twice — so when Midrise is
-                                // the winning rule for units, the multiplier is not applied.
-                                // Mansion Conversion likewise already assumes NO parking is required,
-                                // so boosting it again for parking reform would credit the same
-                                // freed-up space twice (design rule 3).
-                                if (baseScenario !== 'commercial') {
-                                    const unitMultiplier = parkingAlreadyModeled ? 1 : parkingBoostMultiplier;
-                                    maxNetUnits = Math.max(maxNetUnits * unitMultiplier, parkingAloneFloor);
-                                    stackedUnits = Math.max(stackedUnits * unitMultiplier, parkingAloneFloor);
-                                }
-                            }
-                        }
-
-                        // BASE SCENARIO — a pure FILTER on what the selected reforms produced.
-                        // It never generates units or jobs by itself. Every unit and job in the
-                        // model must trace back to a specific policy's own formula; the scenario
-                        // only decides which of those outputs count on this parcel.
-                        //   residential → keep units, zero jobs (parking job boost re-added below)
-                        //   commercial  → keep jobs, zero units
-                        //   mixed       → keep both, exactly as the reforms produced them
-                        //   current     → single-use by assessor class (commercial → jobs only,
-                        //                 residential → units only; vacant/other pass through)
-                        // (Earlier versions gave 'commercial' and 'mixed' their own flat floors —
-                        // (lot × 0.5) ÷ job size in jobs, (lot × 0.25) ÷ unit size in units — on every
-                        // underutilized parcel once ANY box was checked. Mixed + ADUs alone produced
-                        // ~50,000 units and ~85,000 jobs that no selected reform created. Removed.)
-                        if (baseScenario === 'commercial') {
-                            maxNetUnits = 0; stackedUnits = 0;
-                        } else if (baseScenario === 'mixed') {
-                            // no-op: both units and jobs from the reforms pass through unchanged
-                        } else if (baseScenario === 'residential') {
-                            maxNetJobs = 0; stackedJobs = 0;
-                        } else {
-                            if (isCommercial) {
-                                maxNetUnits = 0; stackedUnits = 0;
-                            } else if (isResidential) {
-                                maxNetJobs = 0; stackedJobs = 0;
-                            }
-                            // vacant/other: no override — policy loop values pass through
-                        }
-
-                        finalUnits = maxNetUnits * absorptionRate;
-                        finalJobs = maxNetJobs * absorptionRate;
-
-                        let stackedFinalUnits = stackedUnits * absorptionRate;
-                        let stackedFinalJobs = stackedJobs * absorptionRate;
-
-                        // COVENANTS: Final override — wins over every scenario and policy.
-                        // Field logic:
-                        //   RESTRICTIONS        — descriptive label, not used in math
-                        //   SINGLE FAMILY ONLY  — "Y" = max 1 detached unit, no MF, no jobs
-                        //   allow_mf            — false = no multifamily (cap units at 1)
-                        //   allow_com           — false = no commercial jobs
-                        //   max_units           — hard cap on total units regardless of intervention
-                        if (applyCovenants && props._hasDeedRestriction) {
-                            const d = props._deedProps;
-
-                            const sfOnly   = String(d['SINGLE FAMILY ONLY'] || d.single_family_only || d.sfOnly || '').trim().toUpperCase();
-                            const allowMf  = String(d.allow_mf  ?? 'true').trim().toLowerCase();
-                            const allowCom = String(d.allow_com ?? 'true').trim().toLowerCase();
-                            const maxCap   = parseInt(d.max_units || d.MaxUnits, 10);
-
-                            if (sfOnly === 'Y') {
-                                // Strictly one single-family unit — no MF, no jobs
-                                finalUnits = Math.min(finalUnits, 1);
-                                finalJobs  = 0;
-                                stackedFinalUnits = Math.min(stackedFinalUnits, 1);
-                                stackedFinalJobs = 0;
-                            } else {
-                                // Multifamily check
-                                if (allowMf === 'false' || allowMf === 'no' || allowMf === 'n') {
-                                    finalUnits = Math.min(finalUnits, 1);
-                                    stackedFinalUnits = Math.min(stackedFinalUnits, 1);
-                                }
-                                // Commercial / jobs check
-                                if (allowCom === 'false' || allowCom === 'no' || allowCom === 'n') {
-                                    finalJobs = 0;
-                                    stackedFinalJobs = 0;
-                                }
-                            }
-
-                            // Hard unit cap — applies regardless of which branch above ran
-                            if (!isNaN(maxCap) && maxCap >= 0) {
-                                finalUnits = Math.min(finalUnits, maxCap);
-                                stackedFinalUnits = Math.min(stackedFinalUnits, maxCap);
-                            }
-                        }
-
-                        totalStackedUnits += stackedFinalUnits;
-                        totalStackedJobs += stackedFinalJobs;
-                    }
-
-                    // Accumulate AFTER covenant override so totals reflect restricted values
-                    if (finalUnits > 0 || finalJobs > 0) {
-                        totalNetUnits += finalUnits;
-                        totalNetJobs += finalJobs;
-                        if (districtTotals[props._district]) {
-                            districtTotals[props._district].u += finalUnits;
-                            districtTotals[props._district].j += finalJobs;
-                        }
-                    }
-                    
-                    layer.setStyle(getTrivariateStyle(finalUnits, finalJobs));
-
-                    const covenantNote = (applyCovenants && props._hasDeedRestriction)
-                        ? '<br><span style="color:#b45309;">⚠ Deed restriction applied</span>' : '';
-                    const ruleNote = [props._winningRuleUnits, props._winningRuleJobs]
-                        .filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
-                    // Distinguish the three real reasons a parcel shows no policy yield, rather than
-                    // lumping them all under "not eligible": nothing selected, a scenario floor
-                    // fired, or the parcel genuinely failed the screens for what IS selected.
-                    let policyLabel;
-                    if (ruleNote) {
-                        policyLabel = ruleNote;
-                    } else if (activePolicies.length === 0) {
-                        policyLabel = 'None — no policy selected';
-                    } else if (meetsUnderutilized && (finalUnits > 0 || finalJobs > 0)) {
-                        policyLabel = 'Base scenario floor';
-                    } else {
-                        policyLabel = 'None — not eligible for selected policies';
-                    }
-                    let hbu;
-                    if (finalUnits > 0 && finalJobs > 0) hbu = 'Mixed use (housing + commercial)';
-                    else if (finalUnits > 0) hbu = 'Residential';
-                    else if (finalJobs > 0) hbu = 'Commercial';
-                    else hbu = 'No change from existing use';
-                    // Flag parcels with zero data on every source field — this means the source file
-                    // never had existing-conditions data for this parcel (a data gap), not that the
-                    // parcel was actually verified vacant. District 1's data file currently has this
-                    // gap for 100% of its parcels — see README data quality notes.
-                    const noSourceData = (existingUnits === 0 && bldgSqft === 0 && !propertyTag && !useDesc);
-                    const dataGapNote = noSourceData
-                        ? '<br><span style="color:#b45309;">⚠ No existing-conditions data in source file for this parcel — "underutilized" here is a data gap, not a verified finding.</span>'
-                        : '';
-                    // Mansion Conversion needs real footprint/interior data to size the conversion —
-                    // flag when that's specifically what's missing, on a parcel otherwise eligible
-                    // (a residential building), so this doesn't read as "not a good candidate" when it's
-                    // actually just "no structure size recorded for this parcel."
-                    const mansionDataGap = (activePolicies.includes('mansion_conversions')
-                        && parcelIsResidential
-                        && bldgSqft === 0 && interiorSqft === 0 && !noSourceData)
-                        ? '<br><span style="color:#b45309;">⚠ No building size recorded for this parcel — Mansion Conversion can\'t size a conversion without it, even if a real structure exists here.</span>'
-                        : '';
-                    layer.bindPopup(`
-                        <div class="parcel-popup" style="font-size:12px; line-height:1.5;">
-                          <strong>District ${props._district}</strong><br>
-                          Land use: ${useDesc ? useDesc : (propertyTag ? '(code only) ' + propertyTag : 'Not recorded in source data')}${useDesc && propertyTag ? ' (' + propertyTag + ')' : ''}<br>
-                          Lot size: ${Math.round(lotSqft).toLocaleString()} sq ft<br>
-                          Existing units: ${existingUnits}<br>
-                          Underutilized: ${meetsUnderutilized ? 'Yes' : 'No'}<br>
-                          Highest &amp; best use (this scenario): <strong>${hbu}</strong><br>
-                          Policy applied: ${policyLabel}<br>
-                          <span class="yield-line"><strong>Net yield: ${Math.round(finalUnits)} units, ${Math.round(finalJobs)} jobs</strong></span>
-                          ${covenantNote}${dataGapNote}${mansionDataGap}
-                        </div>
-                    `);
-                }); 
-
-
-                // Round data directly at the UI Output to keep probability math accurate
-                const unitsPct = Math.min(100, (totalNetUnits / 35000) * 100);
-                const jobsPct = Math.min(100, (totalNetJobs / 55000) * 100);
-                const unitsTickPct = Math.min(100, (Math.max(totalNetUnits, totalStackedUnits) / 35000) * 100);
-                const jobsTickPct = Math.min(100, (Math.max(totalNetJobs, totalStackedJobs) / 55000) * 100);
-
-                const unitsFill = document.getElementById('pb-units-fill');
-                const jobsFill = document.getElementById('pb-jobs-fill');
-                unitsFill.style.width = unitsPct + '%';
-                jobsFill.style.width = jobsPct + '%';
-                unitsFill.classList.toggle('target-met', totalNetUnits >= 35000);
-                jobsFill.classList.toggle('target-met', totalNetJobs >= 55000);
-
-                document.getElementById('pb-units-tick').style.left = unitsTickPct + '%';
-                document.getElementById('pb-jobs-tick').style.left = jobsTickPct + '%';
-
-                document.getElementById('pb-units-text').innerHTML =
-                    `${Math.round(totalNetUnits).toLocaleString()} / 35,000 <span class="pct">(${unitsPct.toFixed(0)}%)</span>`;
-                document.getElementById('pb-jobs-text').innerHTML =
-                    `${Math.round(totalNetJobs).toLocaleString()} / 55,000 <span class="pct">(${jobsPct.toFixed(0)}%)</span>`;
-
-                let tableHTML = "";
-                for (let i = 1; i <= 8; i++) {
-                    tableHTML += `<tr>
-                        <td>District ${i}</td>
-                        <td style="color:var(--housing);">${Math.round(districtTotals[i].u).toLocaleString()}</td>
-                        <td style="color:var(--jobs);">${Math.round(districtTotals[i].j).toLocaleString()}</td>
-                    </tr>`;
-                }
-                tableHTML += `<tr class="total-row">
-                    <td>TOTAL</td>
-                    <td style="color:var(--housing);">${Math.round(totalNetUnits).toLocaleString()}</td>
-                    <td style="color:var(--jobs);">${Math.round(totalNetJobs).toLocaleString()}</td>
-                </tr>`;
-                document.getElementById('table-body').innerHTML = tableHTML;
-
-                // Plain-English summary — identify the top 1-2 districts by combined yield
-                const districtRanked = Object.keys(districtTotals)
-                    .map(d => ({ d, total: districtTotals[d].u + districtTotals[d].j }))
-                    .filter(x => x.total > 0)
-                    .sort((a, b) => b.total - a.total);
-                const summaryEl = document.getElementById('summary-line');
-                if (totalNetUnits === 0 && totalNetJobs === 0) {
-                    summaryEl.innerHTML = activePolicies.length === 0
-                        ? 'No policy interventions selected — this is the do-nothing baseline (zero net change). Check a policy above, or click "Load Full Reform Package," to see impact.'
-                        : 'The selected interventions produce no eligible net-new yield under current filters and constraints.';
-                } else {
-                    const districtPhrase = districtRanked.length >= 2
-                        ? `concentrated most heavily in Districts ${districtRanked[0].d} and ${districtRanked[1].d}`
-                        : districtRanked.length === 1
-                        ? `concentrated most heavily in District ${districtRanked[0].d}`
-                        : '';
-                    summaryEl.innerHTML = `At current settings, this reaches <strong>${unitsPct.toFixed(0)}%</strong> of the housing target and <strong>${jobsPct.toFixed(0)}%</strong> of the jobs target${districtPhrase ? ', ' + districtPhrase : ''}.`;
-                }
-
-                // Capture this run's results so "Save This Run" (in Scenario Comparison) can use them
-                const policyLabels = {
-                    adu: 'ADUs', lot_splits: 'Lot Splits', mansion_conversions: 'Mansion Conv.',
-                    missing_middle_4_8: 'Missing Middle 4-8', missing_middle_9_16: 'Missing Middle 9-16',
-                    midrise: 'Midrise', no_parking: 'Parking Reform', sb840_baseline: 'SB840 Baseline'
-                };
-                let scenarioLabel;
-                const sb840Active = activePolicies.includes('sb840_baseline');
-                const otherActive = activePolicies.filter(p => p !== 'sb840_baseline');
-                if (otherActive.length === 0 && !sb840Active) {
-                    scenarioLabel = 'Baseline (no policy)';
-                } else if (otherActive.length === 0 && sb840Active) {
-                    scenarioLabel = 'SB840 Baseline only (last resort)';
-                } else if (otherActive.length === 7) {
-                    scenarioLabel = 'Full Reform Package' + (sb840Active ? ' + SB840' : '');
-                } else if (otherActive.length <= 2) {
-                    scenarioLabel = otherActive.map(p => policyLabels[p] || p).join(' + ') + (sb840Active ? ' + SB840' : '');
-                } else {
-                    scenarioLabel = otherActive.length + ' policies active' + (sb840Active ? ' + SB840' : '');
-                }
-                lastRunResults = {
-                    label: scenarioLabel,
-                    units: totalNetUnits, jobs: totalNetJobs,
-                    unitsPct: unitsPct, jobsPct: jobsPct,
-                    absorption: absorptionRate * 100
-                };
-
-            } catch (err) {
-                console.error("Engine Error:", err);
-            }
-        }
-
-        // --- Scenario Comparison ---
-        function saveScenario() {
-            if (!lastRunResults) { alert('Run the simulation at least once before saving a scenario.'); return; }
-            if (savedScenarios.length >= 4) savedScenarios.shift(); // keep at most 4, oldest drops off
-            savedScenarios.push({ ...lastRunResults, id: Date.now() });
-            renderScenarioComparison();
-        }
-
-        function removeScenario(id) {
-            savedScenarios = savedScenarios.filter(s => s.id !== id);
-            renderScenarioComparison();
-        }
-
-        function clearScenarios() {
-            savedScenarios = [];
-            renderScenarioComparison();
-        }
-
-        function renderScenarioComparison() {
-            const el = document.getElementById('scenario-comparison-list');
-            if (savedScenarios.length === 0) {
-                el.innerHTML = '<p style="font-size: 11.5px; color: var(--text-muted); text-align: center; margin: 4px 0;">No saved scenarios yet — run a configuration and click "Save This Run."</p>';
-                return;
-            }
-            el.innerHTML = savedScenarios.map(s => `
-                <div class="scenario-row">
-                    <div class="scenario-row-header">
-                        <span class="scenario-row-label">${s.label}</span>
-                        <button class="scenario-row-remove" onclick="removeScenario(${s.id})">✕ remove</button>
-                    </div>
-                    <div class="scenario-bar-line">
-                        <span class="housing-text" style="width: 34px;">Units</span>
-                        <div class="scenario-bar-track"><div class="scenario-bar-fill housing-fill" style="width:${Math.min(100, s.unitsPct)}%;"></div></div>
-                        <span style="width: 70px; text-align: right;">${Math.round(s.units).toLocaleString()} (${s.unitsPct.toFixed(0)}%)</span>
-                    </div>
-                    <div class="scenario-bar-line">
-                        <span class="jobs-text" style="width: 34px;">Jobs</span>
-                        <div class="scenario-bar-track"><div class="scenario-bar-fill jobs-fill" style="width:${Math.min(100, s.jobsPct)}%;"></div></div>
-                        <span style="width: 70px; text-align: right;">${Math.round(s.jobs).toLocaleString()} (${s.jobsPct.toFixed(0)}%)</span>
-                    </div>
-                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Absorption: ${s.absorption.toFixed(0)}%</div>
-                </div>
-            `).join('');
-        }
-
-
-        window.onload = loadData;
-    </script>
-</body>
-</html>
+# El Paso Housing Strategy Simulator
+
+An interactive parcel-level simulation tool for exploring how different land use policy interventions could contribute toward El Paso's housing and job creation targets. The tool allows planners, policymakers, and the public to combine base development scenarios with specific policy levers, apply geographic constraints, and visualize cumulative potential across all eight City Council districts.
+
+View the Simulator here: https://hoffmanap.github.io/housingstrategy/
+---
+
+## Using the Tool
+
+The sidebar's **"How this model works"** button opens an in-app methodology
+panel covering eligibility rules, yield logic, and known caveats — the
+condensed version of everything documented below. **Click any parcel on the
+map** to see which specific rule produced its yield (base scenario, ADU, lot
+split, missing middle, midrise, or parking reform), along with the parcel's
+underlying lot size, land use code, and existing unit count. The top banner
+reports two numbers per category: a **conservative headline figure** (highest
+single intervention per parcel — see below) and an **"up to" upper bound**
+(what the same parcels would yield if every eligible policy stacked
+additively instead). Treat the true answer as somewhere between the two,
+not as the headline number alone.
+
+## How the Model Works
+
+The simulator operates at the individual parcel level. For every parcel in the dataset, the model evaluates whether a given combination of scenario and policy interventions would yield new housing units or jobs, applies a market absorption rate to translate theoretical capacity into realistic near-term production, and then aggregates results across all parcels to produce citywide and district-level totals.
+
+The output is a **potential capacity estimate under realistic but favorable conditions** — not a guarantee of development. Every number produced is a function of parcel size, existing conditions, the selected scenario, any active policy interventions, and any applicable constraints.
+
+**All calculation happens client-side, in the browser, in `index.html`.** There is no separate offline data-processing pipeline — the JavaScript simulation engine in `index.html` is the single, authoritative implementation of the model described below.
+
+### Three design rules the engine follows
+
+These emerged from auditing the formulas and are worth stating explicitly, since violating any of them has produced real bugs in earlier versions:
+
+1. **Zero policies means zero net change, in every scenario.** A base scenario is a framing for how reform yield is counted, not a source of yield on its own. Selecting "Commercial Only" or "Vertical Mixed Use" with no policy checked correctly produces 0 units and 0 jobs — so every reported number is attributable to a specific policy choice, and the do-nothing baseline is a genuine counterfactual to compare against.
+2. **Adding a policy can never reduce the total.** Where two mechanisms both apply to a parcel, the model takes the larger rather than letting one replace the other. Earlier versions had several cases where checking an additional box lowered the citywide number — always because a value was silently replaced by a different formula instead of combined with what was already there.
+3. **The same physical capacity is never counted twice, and yield with no construction policy behind it doesn't exist.** Where two policies would describe the same square footage (Midrise and the parking-reform unit boost both freeing the same land), the model takes the maximum, not the sum. Where a policy had no construction mechanism of its own but still produced yield — parking reform's standalone job formula, identical to Midrise's and firing even with no construction policy active — that yield is removed rather than deduplicated, since nothing built it.
+4. **A geographic constraint applies to what it actually governs, not to the whole parcel.** Historic district protection blocks new construction and exterior-changing policies, but not Mansion Conversion, which changes nothing external. An earlier version applied it as a blanket exclusion from every calculation on the parcel, which silently zeroed policies the constraint was never meant to touch.
+5. **A fallback assumption doesn't apply once the data explicitly contradicts it.** "No multifamily allowed" defaulted to "but a single-family home is still fine" — true for an ordinary residential covenant, false for one restricted to a church or a public building, which the data said outright (`SINGLE FAMILY ONLY: 'N'`, `RESTRICTIONS: 'Public Building Only'`). The fallback ran anyway, crediting a housing unit on land that permits no housing.
+
+---
+
+## Parcel Eligibility: The Underutilization Threshold
+
+Some — not all — policies require a parcel to pass an underutilization screen first. This test asks one specific question: is there spare, underused land on this lot? A parcel is considered underutilized if any of the following are true:
+
+- It is classified as vacant in the Texas assessor state code (`state_cd`) data. Vacant classifications include: residential vacant lots (A7, A8), platted vacant residential lots (C1), platted vacant commercial lots (C10), colonia lots and land tracts (C2), vacant rural or recreational lots (C3), vacant lots with limited utilities (C6, C7, C8, C9), and undeveloped rural/agricultural/desert acreage (D series).
+- Its building-to-lot coverage ratio is below a threshold:
+  - **Below 15%** for residential and current-use scenarios. This threshold is appropriate for El Paso's context, where single-story residential buildings on large lots commonly have coverage ratios of 10% or less, correctly identifying them as candidates for densification.
+  - **Below 45%** for commercial and mixed-use scenarios (relaxed to reflect that job-generating redevelopment is viable even on partially-built commercial parcels)
+- It has no existing units and no building square footage recorded
+
+**This screen applies to ADUs, Lot Splits, Midrise, the parking-reform boost, and SB840 Baseline** — all policies about adding a new use to land that isn't fully built out.
+
+**It does NOT apply to Mansion Conversion or either Missing Middle tier.** These are about redeveloping a lot that already has a home on it, and coverage ratio doesn't measure whether that's a good candidate — a normal, occupied single-family home routinely covers well over 15% of its lot, which is exactly what you'd expect from a house that's actually there. An earlier version of this tool gated Missing Middle on this test anyway, which incorrectly excluded the majority of real small-residential parcels (a check against actual parcel data found 61-65% of occupied 1-3 unit properties exceed the 15% threshold and were being wrongly filtered out). That's fixed: Missing Middle's eligibility is 1-3 existing units, and Mansion Conversion's is any residential building with recorded floor area — coverage ratio plays no role in either.
+
+Mansion Conversion can still net zero for reasons unrelated to coverage — see "Why a residential parcel can still net zero" in its section below. The most common is a data gap: roughly 20-30% of residential parcels (depending on district) have no recorded footprint or interior square footage. The parcel popup flags this distinctly, separate from the "no existing-conditions data at all" flag used elsewhere.
+
+---
+
+## Market Absorption Rate
+
+All gross capacity figures are multiplied by a user-adjustable **absorption rate** before being counted in the totals. This rate represents the share of theoretically eligible parcels that would realistically redevelop over a planning horizon given market conditions, financing constraints, owner willingness, and timing. The slider runs from **0% to 100%**, with a default of **8%**.
+
+### Why does the model need this at all?
+
+Without it, the tool would report what happens if *every single eligible parcel redeveloped simultaneously* — which never happens in real cities. Some owners never sell or build. Some parcels aren't financially attractive to a developer even when zoning allows it. Some sit untouched for decades simply because nothing prompts the owner to act. The absorption rate is the model's way of saying "only some share of what's technically possible actually gets built in a real planning window," rather than reporting a number no city could ever achieve.
+
+### A worked example
+
+Say a given policy combination makes 8,000 parcels citywide eligible, and on average each eligible parcel could gain 2.5 net units under that combination. That's a **gross capacity of 20,000 units** — the number you'd get at 100% absorption, i.e. if every eligible owner redeveloped at once.
+
+At the default **8% absorption rate**, the model instead counts:
+
+> 20,000 gross units × 8% = **1,600 units**
+
+as the realistic outcome over the model's 10-year horizon. The other 18,400 units of "theoretical capacity" remain possible under the reformed zoning, but the model doesn't assume they'll actually get built — most of those parcels will simply stay as they are for the next decade, the way most parcels in most cities do even after upzoning.
+
+### Where the 8% number itself comes from
+
+This is the one number in the model we could ground in actual regional data rather than a generic planning rule of thumb, so here's the full chain of reasoning:
+
+1. **Start with real construction activity.** El Paso County averaged roughly 2,517 new housing permits per year from 2020–2024 (U.S. Census Bureau / FRED series [BPPRIV048141](https://fred.stlouisfed.org/series/BPPRIV048141)). For context, that's *down* from ~3,100/year over 2013–2022 and ~4,300/year over 2003–2012 (reported by [El Paso Matters](https://elpasomatters.org/2024/02/25/el-paso-growth-sprawl-impacts-water-bills/), citing Federal Reserve data) — the pace of new housing construction has been shrinking, not growing.
+2. **Recognize what that number actually represents.** That El Paso Matters reporting also notes city population has stayed roughly flat despite all that permitting — meaning much of it has been greenfield subdivision development spreading outward at the county's edge, not redevelopment of parcels that are already built up within city limits. This model only touches that second category — existing, already-parcelized, underutilized land — so the true "infill-only" pace is smaller than 2,517/year, though public data doesn't let us isolate exactly how much smaller.
+3. **Choose a conservative default in that light.** Rather than use the full county-wide pace (which would overstate infill activity) or an arbitrary round number, 8% was chosen specifically to sit clearly below the county-wide historical pace, reflecting that infill redevelopment is a slower, harder process than greenfield building on open land — new utility hookups aren't needed, but existing structures, existing owners, and existing neighbors all have to be worked around.
+
+**Be clear about what this number is and isn't.** It's a defensible, data-grounded *starting point* — not a validated calibration. A true calibration would compare actual annual infill permits against this model's own count of eligible underutilized parcels, a comparison the underlying dataset doesn't yet make possible. Until that comparison exists, 8% should be treated as a reasonable default to stress-test, not a precise forecast — which is exactly why the slider goes all the way from 0% to 100% rather than locking in a single number.
+
+---
+
+## Base Development Scenarios
+
+**The base scenario only decides how the checked reforms are applied — it never produces housing or jobs on its own.** Every unit and every job in the model traces back to a specific reform's own formula; the scenario is a filter on those results. With no reform checked, every scenario shows zero.
+
+| Scenario | Housing from reforms | Jobs from reforms |
+|---|---|---|
+| **Current Land Use** | Kept on residential and vacant/other parcels; dropped on commercial parcels | Kept on commercial and vacant/other parcels; dropped on residential parcels |
+| **Residential Only** | Kept | Dropped |
+| **Commercial Only** | Dropped | Kept |
+| **Vertical Mixed Use** | Kept | Kept |
+
+**Only Midrise generates jobs.** No other policy — including Eliminate Parking Minimums — produces a job yield of its own, so a scenario that "keeps jobs" still shows zero jobs unless Midrise is checked. (An earlier version gave parking reform its own standalone job formula, identical to Midrise's ground-floor job yield — so checking Eliminate Parking Minimums alone, with no construction policy active, still generated jobs under any scenario that keeps them. That's removed; see the Eliminate Parking Minimums section below.) Current Land Use classifies parcels by Texas assessor state code (A/B residential; F1/F2 commercial), falling back to the land-use description for codes those patterns don't recognize.
+
+**A corrected error worth documenting:** earlier versions gave Commercial Only and Vertical Mixed Use their own flat floor yields — `(lot × 0.5) ÷ job size` in jobs and `(lot × 0.25) ÷ unit size` in units — on every underutilized parcel once *any* box was checked. Checking ADUs alone under Vertical Mixed Use reported ~50,000 units and ~85,000 jobs, versus 416 units from ADUs under any other scenario: the scenario itself was generating the yield. Those floors are removed. Checking ADUs now produces the same 416 units under Current, Residential, and Mixed Use, and zero under Commercial Only, which drops housing.
+
+---
+
+## Policy Interventions
+
+Policy interventions are the only source of units and jobs. The base scenario then filters their results (see above). Multiple interventions can be active simultaneously; the model takes the **highest single-intervention yield** for units and jobs separately (they do not stack additively), except where noted.
+
+### Accessory Dwelling Units (ADUs)
+**Eligibility:** Parcels with exactly 1 existing unit (single-family). No lot-size minimum — a real ADU-enabling ordinance applies regardless of lot size; buildability at the margins is the homeowner's problem, not a citywide capacity assumption. Does not use the underutilization screen (see above).
+**Yield:** 1 net new unit per eligible parcel.
+**Rationale:** ADUs are assumed to be attached or detached secondary units added to existing single-family homes specifically — a duplex or larger already has multiple units and isn't what "an ADU" describes.
+
+### Lot Splits
+**Eligibility:** Underutilized parcels at least double a minimum buildable lot size (3,500 sq ft — a documented assumption, not derived from El Paso's actual subdivision code), for a combined minimum of 7,000 sq ft.
+**Yield:** The lot becomes two buildable lots; net yield is `max(0, 2 − existing units)`.
+**Rationale:** A lot split needs to leave two genuinely buildable halves, not just any subdivision. The minimum lot size is a stated assumption, not an empirical figure — see the methodology modal for the reasoning.
+
+### Mansion Conversions — a square-footage rule with no parking required
+
+**What it is:** dividing an existing residential building into more units than it holds today. It's positioned as its own tool, separate from SB840 and Missing Middle, because of one defining difference: **conversions require no additional parking, in either direction** — Missing Middle and SB840 Baseline both deduct land for one off-street space per unit unless parking reform is also active (see their section below), while Mansion Conversion's formula never references parking at all. That absence of a parking constraint is what makes it a genuinely different, often more valuable lever than new construction — not just a description, but a real difference in the math since the parking-land deduction was added to the other two. Because it doesn't depend on SB840's trigger, it has no unit-count threshold.
+
+**Formula:**
+```
+gross units   = floor(building sq ft ÷ 500)
+net new units = gross units − existing units   (never below 0)
+```
+- **Building sq ft** is total floor area across all stories (`interior_sqft`) when recorded, otherwise the ground-floor footprint (`footprint_sqft`).
+- **500 sq ft per unit** is the default rule, adjustable under Model Assumptions → *Conversion Size* (300–1,000). It's deliberately smaller than the 850 sq ft used for new construction, since conversions carve existing floor area into efficient units.
+- **Existing units** come from the assessor-derived `existing_units` field. A residential building recorded with 0 units (an assessor code the unit mapping doesn't cover) is treated as holding 1, so an existing home isn't credited as though it were empty.
+
+**Worked examples:**
+
+| Building | Existing units | Gross (÷ 500) | Net new |
+|---|---|---|---|
+| 900 sq ft single-family | 1 | 1 | 0 |
+| 2,000 sq ft single-family | 1 | 4 | **3** |
+| 3,200 sq ft duplex | 2 | 6 | **4** |
+| 5,000 sq ft fourplex | 4 | 10 | **6** |
+| 6,000 sq ft, 12-unit apartment | 12 | 12 | 0 |
+
+**Eligibility:** any residential parcel — Texas assessor A or B codes (excluding vacant A7/A8), or a land-use description containing "residential" — with recorded building floor area. Commercial parcels are never eligible. There is no unit-count ceiling and no underutilization/lot-coverage screen: whether a building can be divided depends on the building, not on how much of the lot it covers.
+
+**Historic districts do NOT block this policy.** Unlike every other intervention, Mansion Conversion is exempt from "Protect Historic Districts." It's an interior reconfiguration with no exterior or footprint change, so it isn't what historic review governs — and real informal conversions are common in exactly these older, larger-home neighborhoods. **This was a real bug, not a minor gap:** historic protection previously excluded a parcel from the *entire* calculation, not just from policies that actually involve new construction, which silently zeroed Mansion Conversion across entire historic neighborhoods — checked against real parcel data, 903 parcels in historic districts now correctly receive a conversion that previously showed "not eligible" for no reason related to the conversion itself.
+
+**No parking, no stacking:** since conversions already assume no added parking, the separate 20% "Eliminate Parking Minimums" boost is **not** applied on top of them — that would credit the same freed-up space twice (design rule 3). Verified against real parcel data: of 6,722 parcels where Mansion Conversion is the winning rule, none are affected by toggling parking reform on or off. (Checking both together still raises the citywide total, because parking reform's own floor yield — see below — independently reaches a different, larger set of parcels Mansion Conversion doesn't touch; that's two policies each covering different ground, not double-counting on the same parcel.)
+
+**Why a residential parcel can still net zero** (checked against real parcel data):
+- **Under 1,000 sq ft** — can't yield a second 500 sq ft unit (~830 parcels).
+- **Already at one unit per 500 sq ft or denser** — nothing left to carve out, as with most existing apartment buildings (~840 parcels).
+- **No recorded building size** — roughly 20–30% of residential parcels depending on district (~2,600 parcels). A data gap, not a judgment; the parcel popup flags it.
+
+**A corrected error worth documenting:** earlier versions discounted floor area by 15% and divided by the 850 sq ft new-construction unit size, so a 2,000 sq ft house yielded 2 gross − 1 existing = **1** net unit and an 1,800 sq ft house yielded **0**. About 4,300 residential parcels displayed "not eligible" purely from that rounding. Earlier versions also capped eligibility at 4 existing units, and excluded historic districts entirely (see above). With the current rule, the number of residential parcels credited with a conversion rose from about 2,100 to about 6,700 (including the 903 historic-district parcels newly included), and a 2,000 sq ft single-family house now nets 3 units.
+
+### SB840's 3-unit trigger (governs Missing Middle and SB840 Baseline)
+
+SB840 applies to anything permitting *more than 3 units*, so above that line the state mandate governs and the city has no discretion. A local density-bonus program can therefore only be offered as an *alternative* for properties currently at 3 units or fewer. **Both Missing Middle tiers** use this threshold, and **SB840 Baseline** is its exact complement — every parcel falls on one side or the other, never both. (Mansion Conversion does not use this threshold — see above.)
+
+**Texas assessor state codes are the proxy**, via the `existing_units` field derived in `prep_data.py`:
+
+| Code | Units | Missing Middle (≤ 3) | SB840 Baseline (> 3, or commercial/vacant) |
+|---|---|---|---|
+| A1 — single-family | 1 | ✓ | — |
+| A51 / B1 — duplex | 2 | ✓ | — |
+| A53 / B3 — triplex | 3 | ✓ | — |
+| A54 / B4 / B9 — quadplex | 4 | — | ✓ |
+| A55 / B5 / B7 — fiveplex | 5 | — | ✓ |
+| A56 / B6 / B8 — sixplex | 6 | — | ✓ |
+| A52 / B2 — apartment | 12 | — | ✓ |
+
+The threshold is a single named constant in the code (`SB840_TRIGGER_MAX_UNITS = 3`) so it can't drift apart between the two programs that share it.
+
+**Both programs assume one off-street parking space per unit — for real, in the math, not just in how they're described.** Unless "Eliminate Parking Minimums" is also checked, achievable units are reduced by however much land that parking would consume (300 sq ft/space, the same land-consumption calculation Midrise uses). This is what gives Mansion Conversion — which carries no parking assumption in either direction — a genuine, verifiable advantage over these two programs, rather than an advantage that exists only in the descriptions. Checked against real parcel data: Missing Middle (9-16) goes from 2,578 net units citywide with parking required to 16,240 with parking eliminated; SB840 Baseline goes from 32,650 to 136,263. (An earlier version described this parking assumption for both programs without actually implementing it in either formula — only Midrise deducted parking land — so the stated framing and the underlying math disagreed. That's fixed.)
+
+### Missing Middle Housing (4–8 Units) & Missing Middle Housing (9–16 Units)
+
+**Why these caps and this eligibility rule exist — Texas SB840:** SB840 requires that any zone permitting more than 3 units must allow 4 floors and the city's maximum density (145 units/acre) — a state mandate the city cannot restrict. The one exception is a "workaround": on parcels that currently have 1–3 existing units (single-family, duplex, or triplex) — i.e. those *not* already triggering the bill — the city may impose additional local limits in exchange for offering a density bonus. Both Missing Middle checkboxes model this bonus program specifically, which is why eligibility is restricted to parcels currently at 3 units or fewer.
+
+**Eligibility:** Between 1 and 3 existing units, inclusive (single-family, duplex, or triplex) — above 3 units SB840 itself governs, so the bonus program isn't available. Does not use the underutilization screen (see above) — an earlier version of this tool did, which incorrectly excluded the majority of real candidates (a check against actual parcel data found 61-65% of occupied small-residential parcels exceed the 15% coverage threshold, since that's just what a normal house on a normal lot looks like).
+
+**Yield — same formula, different cap:**
+1. Compute the buildable envelope: 35 ft height cap (≈3 floors, at a standard ~11.7 ft floor-to-floor height — a local limit below SB840's full 4-floor mandate, part of the city's workaround) × 50% lot coverage × lot area, divided by the adjustable unit size assumption — `envelope units = floor((lot sq ft × 0.5 × 3) / unit size)` — then reduced for required parking land unless "Eliminate Parking Minimums" is active (see "Both programs assume one off-street parking space per unit," above).
+2. Subtract existing units from the envelope first, to get the additional capacity the site can support beyond what's already there.
+3. Cap that additional capacity at **8** (the 4-8 checkbox) or **16** (the 9-16 checkbox) — up to and including that number.
+
+This means the two checkboxes only diverge once a lot's envelope has enough spare capacity to exceed 8 — on small lots where the site itself can't support more than 8 *additional* units regardless of which is chosen, both checkboxes agree (correctly, since the physical constraint binds before the policy cap does). On larger 1-3 unit lots, or with a smaller unit size assumption, the 16-unit cap allows meaningfully more than the 8-unit cap.
+
+**A known limitation — unit size vs. lot width:** this formula sizes buildings by dividing available floor area by an assumed unit size. Dan Parolek's *Missing Middle Housing* argues building size (and therefore unit count) should instead be driven by lot width, which better reflects a building's street-facing massing and fit within existing neighborhood character. This dataset has lot area but not lot width, and approximating width from parcel geometry (e.g. a bounding-box calculation) is unreliable for irregular or non-rectangular parcels — so unit size is used here as a practical substitute, not because it's judged to be the more theoretically correct approach. If reliable lot-width or frontage data becomes available, switching to Parolek's method would be a meaningful improvement.
+
+### SB840 Baseline (Commercial & 4+ Unit Parcels) — a last resort, not a recommended outcome
+
+**What this models:** everything the Missing Middle bonus program above does *not* cover — commercial parcels, vacant land, and anything already **above** 3 units (a quadplex or larger, or plainly multifamily). These parcels aren't the 1-3 unit properties the Missing Middle "workaround" is offered to, so SB840's flat mandate applies to them directly and in full: 4 floors (the state's actual minimum — not the Missing Middle workaround's reduced 35 ft height) and the citywide maximum density, with no local discretion to restrict it further.
+
+**Eligibility:** Underutilized parcels that are commercial, vacant (0 existing units), or already at 4+ units.
+
+**Yield:** Same minimum-unit-size approach as Missing Middle, at SB840's actual mandated floor count — `gross units = floor((lot sq ft × 0.5 × 4) / unit size)`, minus existing units.
+
+**Read this as a last resort, not a preferred policy.** Its numbers are intentionally large and out of scale with typical neighborhood character — that's the point, not an error to fix. This is what happens by default, everywhere it applies, absent any more tailored local action: a blunt, one-size-fits-all state mandate rather than the context-sensitive infill the other interventions represent. It's deliberately excluded from "Load Full Reform Package" in the tool and kept visually separate in the sidebar (styled distinctly, under a "Last Resort — Not a Preferred Outcome" label) for exactly this reason: the ADU, lot split, mansion conversion, Missing Middle, Midrise, and parking reform policies exist precisely so this blunt instrument doesn't have to be the only path to added density and jobs. The scale of what SB840 forces absent local action is itself the argument for the alternatives.
+
+This is modeled as its own opt-in checkbox rather than an always-on baseline, even though SB840 is current law rather than a hypothetical reform, so that a true zero-policy run still shows zero net change — consistent with every other policy in this tool. Toggle it on to see what the state mandate alone forces, independent of any local policy choice — and to make the case for why the alternatives above are preferable.
+
+**Midrise's floor selector also has a 4-floor minimum**, for the same reason: SB840 sets 4 floors as a floor, not a suggestion, wherever this level of density is permitted.
+
+### Midrise Development
+**Eligibility:** Underutilized parcels.
+**Yield (units):** Uses the same floor-area envelope formula as Missing Middle and SB840 Baseline — `envelope = floor((lot sq ft × 0.5 coverage × floors) / unit size)` — then **capped at the citywide maximum density of 145 units per acre of land**: `gross units = min(envelope, floor(145 × acres))`. If off-street parking is still required (the "Eliminate Parking Minimums" policy is NOT active), the achievable count is reduced by however much land that parking would consume — 300 sq ft/space, assuming the standard 1 space per unit ratio. Net units subtract existing units. **The floor selector's minimum is 4 floors** — SB840 sets this as the state-mandated minimum wherever this density is permitted, not a suggestion, so fewer floors isn't an option (default: 4).
+
+**Why the cap is essential — a corrected error worth documenting:** 145 units/acre is a *land* density figure; it already presumes a multi-story building. An earlier version of this model multiplied 145/acre *by* the floor count, which implied 580 units/acre at 4 floors — roughly 4× the very figure El Paso states as its maximum, and about 5× Manhattan's overall density. That produced citywide totals near 780,000 units. The envelope formula scales correctly with floor count (a taller building genuinely holds more units), while the 145/acre cap keeps the stated maximum binding. At the default 4 floors this yields about 102 units/acre; the cap begins binding at roughly 6 floors.
+**Yield (jobs):** Ground floor is assumed to be commercial space at 1,000 sq ft per job (adjustable), calculated as `(lot sq ft × 0.5) / job size` — independent of the residential envelope calculation above.
+**Single-use rule:**
+- Residential scenario: units only, no jobs
+- Commercial scenario: jobs only, no units
+- Vertical mixed use: both units and jobs
+- Current use: units only (ground-floor commercial is not assumed unless the scenario explicitly allows it)
+
+**The parking effect, quantified:** requiring off-street parking cuts Midrise's unit yield substantially — on a one-acre lot at 4 floors, roughly 102 units become about 30, a ~70% reduction, because the parking consumes land that would otherwise hold housing. (An earlier version of this model, before the density-cap correction above, produced near-zero units in this case; that was an artifact of the uncapped formula, not a real finding. The corrected figures still show parking requirements as a major constraint on achievable density — just a severe one rather than an absolute one.)
+
+**Rationale:** Midrise is the most intensive intervention in the model. The 50% lot coverage assumption reflects typical urban setback and parking requirements even under reformed zoning.
+
+**Where 850 sq ft/unit and 1,000 sq ft/job come from, honestly:** these are general planning-literature benchmarks, not figures derived from El Paso-specific data — unlike the absorption rate above, no local dataset exists to calibrate them against. 850 sq ft approximates a modest, efficient one- to two-bedroom multifamily unit — near the lower-middle of the range for newly built small multifamily nationally. 1,000 sq ft/job sits in the middle of a wide range: dense uses like retail or office can run closer to 200–500 sq ft/employee, while warehouse and light-industrial space can run 1,000–2,000+ sq ft/employee. Rather than assume the densest possible commercial use everywhere — which would inflate job counts — the model uses a single blended, moderate figure across all commercial yield calculations. This is a real simplification: a parcel that would realistically become dense ground-floor retail is likely undercounted on jobs, while one that would become light-industrial space is likely overcounted.
+
+**Both figures are adjustable.** Rather than lock in defaults we can't fully validate, the tool exposes both as sliders under "Model Assumptions (Advanced)" in the sidebar (500–1,400 sq ft/unit, 250–2,000 sq ft/job), each with inline guidance on which direction to move them and why. Refining this into use-specific job densities (matched to what's actually zoned or plausible per parcel) would still be a meaningful improvement to a future version of this model — the sliders let a user approximate that manually in the meantime.
+
+### Eliminate Parking Minimums
+This intervention is treated differently from the housing interventions. It is an **infrastructure and regulatory policy**, not a land use designation, with two distinct effects:
+
+**Effect 1 — removes the parking-land deduction elsewhere.** Missing Middle, SB840 Baseline, and Midrise all assume one off-street parking space per unit (300 sq ft each) unless this policy is also checked, which measurably reduces their yield (see their sections above). This is usually the larger of the two effects.
+
+**Effect 2 — a direct unit boost/floor, on top of that:**
+- **When used alone:** `lotSqft / 5,000` (a modest floor yield reflecting small-scale infill enabled by eliminating required parking)
+- **When combined with other interventions:** units from other policies are multiplied by 1.20 (a 20% boost) — **except Midrise and Mansion Conversion**, which already model parking directly (Midrise by deducting its actual land footprint, Mansion Conversion by assuming no parking at all in either direction). Boosting them again would count the same freed-up space twice.
+- Not applied under the Commercial Only scenario (no units are counted there at all).
+
+**This policy does NOT generate jobs.** An earlier version gave it its own standalone job formula — `(lotSqft × 0.5) / 1000`, identical to Midrise's ground-floor job yield — which meant checking "Eliminate Parking Minimums" alone, with no construction policy active at all, manufactured commercial jobs on every underutilized parcel citywide (checked against real parcel data: jobs reached 100% of the citywide target from parking reform alone, under Vertical Mixed Use, with zero housing policies selected). That's removed. Only Midrise generates jobs now; parking reform boosts whatever construction is already happening, it doesn't invent construction of its own.
+
+**Why 20%, in plain English:** A standard parking space plus its share of drive aisles and maneuvering room typically consumes 300–400 square feet — more land, in many cases, than the housing unit it serves. This isn't a new observation; it's the central finding of decades of parking-policy research, most notably UCLA planning professor Donald Shoup's *The High Cost of Free Parking*, which documents how minimum parking requirements convert a large share of a typical development site into space for cars rather than people, and how removing that mandate frees up buildable area for housing or commercial space instead ([Shoup, "The Trouble with Minimum Parking Requirements," *Transportation Research Part A*, 1999](https://www.vtpi.org/shoup.pdf)).
+
+**Be honest about the specific number.** Shoup's research establishes *why* parking minimums meaningfully constrain buildable area — it does not hand us a single universal "X% more units" conversion factor, because the actual land recovered depends heavily on lot shape, existing setback rules, and how a specific city's parking code is written. 20% is this model's own simplifying default: a deliberately moderate, round-number estimate of the yield boost from freed-up land, chosen to be clearly noticeable without assuming an unrealistically large windfall. It is not itself a number pulled from a study of El Paso specifically.
+
+**This number is adjustable.** The "Parking Reform Boost" slider under "Model Assumptions (Advanced)" runs 0–50%. Move it toward 0% for a maximally conservative estimate that assumes parking reform has little practical effect on what actually gets built; move it toward 30–50% if you believe El Paso's current parking minimums are unusually large relative to actual demand — freeing up more land than a typical city's parking reform would.
+
+---
+
+## Geographic Constraints
+
+Three spatial overlays can be toggled to restrict which parcels contribute to the estimates.
+
+### Historic District Protection
+When enabled, parcels within designated historic districts are excluded from every intervention **except Mansion Conversion**, which is exempt (see its section above). Historic protection blocks new construction and exterior-changing work — Lot Splits, both Missing Middle tiers, Midrise, and SB840 Baseline — reflecting that historic preservation rules would prevent most forms of significant new construction or exterior alteration on these parcels. Mansion Conversion is different in kind: it's an interior reconfiguration with no exterior or footprint change, so historic review doesn't govern it the way it governs everything else, and real informal conversions are common in exactly these older, larger-home neighborhoods.
+
+Checked exhaustively against real parcel data — every one of 2,349 historic parcels, every policy individually, in both scenarios that keep jobs — confirms this split holds cleanly: zero yield from any policy other than Mansion Conversion on any historic parcel, and 313 historic parcels correctly receiving a Mansion Conversion yield. (An earlier version excluded historic parcels from the *entire* calculation rather than per-policy, which also silently zeroed Mansion Conversion — see its section above for the fix and the verification numbers.)
+
+### Transit Corridor Focus
+When enabled, only parcels within approximately a half-mile of transit corridors are included in calculations. This allows the model to explore a transit-oriented development scenario by concentrating estimated yield near existing or planned high-frequency routes.
+
+### Apply Deed Restrictions (Restrictive Covenants)
+When enabled, the model reads parcel-level covenant data from `covenants1.geojson` and `covenants2.geojson` and applies the following rules as a **final override** — meaning covenant restrictions are applied after all scenario and policy calculations, and always take precedence.
+
+The covenant data uses the following fields:
+
+| Field | Meaning |
+|---|---|
+| `RESTRICTIONS` | Descriptive label — not used directly in calculations, but see below |
+| `SINGLE FAMILY ONLY` | `Y` = parcel is restricted to one single-family detached unit; multifamily and commercial uses are prohibited |
+| `allow_mf` | `false` = multifamily is not permitted |
+| `allow_com` | `false` = commercial uses are not permitted; jobs are set to zero |
+| `max_units` | Integer hard cap on total units; yield cannot exceed this value regardless of intervention |
+
+Covenant restrictions apply regardless of which base scenario or policy interventions are active. A parcel with `SINGLE FAMILY ONLY = Y` will never produce more than 1 unit and will never produce jobs, even under a vertical mixed use scenario with midrise and parking reform enabled.
+
+**A second, different restriction pattern — checked against every active covenant in the dataset:** 38 real covenant records have `allow_mf: false` and `allow_com: false` simultaneously, *without* `SINGLE FAMILY ONLY` set to `Y`. Their `RESTRICTIONS` text is uniformly some form of "[a specific use] Only" — Public Building Only, Church Only, School Only, Senior Living Facility Only, Skilled Nursing Only, Self-Storage Only, Nursery Use Only, Utilities Only, Drainage Only. These parcels are deed-restricted to one specific non-residential use, not to ordinary single-family housing, and are now correctly capped at **0 units and 0 jobs** rather than 1 unit.
+
+**A corrected error worth documenting:** an earlier version applied the same "cap units at 1" treatment used for ordinary single-family covenants to this second pattern as well — `allow_mf === 'false'` alone triggered `Math.min(finalUnits, 1)`, on the reasoning that "no multifamily" still implies a single detached home is permitted. That reasoning holds for genuine single-family-zoned covenants, but not for one restricted to, say, a church or a public building — those don't permit a single-family home either. Found via a real example: a 233,762 sq ft parcel in District 8 (PIDN `T07099900100100`), deed-restricted "Public Building Only," was showing "Net yield: 1 units, 0 jobs" under a full-reform-package run — the covenant was correctly zeroing jobs but incorrectly crediting one housing unit on land that permits no housing at all. Checked exhaustively against all 38 affected records after the fix: zero exceptions, all now show 0 units and 0 jobs.
+
+---
+
+## Output Targets
+
+The model tracks cumulative yield against two planning targets displayed in the top banner:
+
+- **35,000 net new housing units**
+- **55,000 net new jobs**
+
+These targets represent El Paso's long-range housing and employment goals. When cumulative yield meets or exceeds a target, the counter turns green. The district-level breakdown table shows how yield is distributed across all eight City Council districts.
+
+---
+
+## Known Data Quality Issues
+
+Two real issues were found while investigating why parcel-level detail looked wrong — one is fixed in this version, one is a source-data gap that still needs attention before relying on District 1's numbers.
+
+### Fixed: field-name mismatch was making every parcel look vacant
+
+The engine's data-extraction logic was written against assumed field names (`building_sqft`, `lot_sqft`, `state_cd`) using loose substring matching. The actual parcel files use different field names entirely (`footprint_sqft`, `targetlotarea`, `state_cd_clean`, `existing_units`, `use_desc`). The substring matching didn't reliably find the real fields — in particular, no field name contains "bldg" or "build", so building square footage was **never populated for any parcel**, regardless of what the source data actually said. Combined with the underutilization rule (`existingUnits === 0 && bldgSqft === 0` counts as underutilized), this made every parcel with a real building look artificially vacant. This is now fixed: the engine reads the exact verified field names, and the parcel popup shows a plain-English land use description (`use_desc`) alongside the assessor code (`state_cd_clean`) where available.
+
+### Not fixed — needs attention: District 1's parcel file has no existing-conditions data
+
+Checking all eight district files directly, `Ready_Parcels_D1.geojson` has **zero** parcels (out of 950) with any existing-conditions data — every single one shows `existing_units: 0`, `coverage_pct: 0`, `footprint_sqft: 0`, `use_desc: "Unknown"`, and `state_cd_clean: null`. Every other district file (D2–D8) has substantial real data — for example, D8 has real values for roughly 45–66% of its parcels depending on the field. This strongly suggests District 1's file was generated without the assessor-data join that the other seven districts received, rather than District 1 genuinely being 950 uniformly vacant parcels.
+
+**What this means in practice:** with the field-mapping fix above, every other district's "underutilized" and yield numbers now reflect real building conditions. District 1's numbers still can't be trusted — they'll look like every parcel is vacant and eligible, because the source file has no data to say otherwise, not because that's true. The parcel popup now flags this directly (a data-gap warning appears on any parcel with zero data across every field), but that's a symptom flag, not a fix. **Regenerating `Ready_Parcels_D1.geojson` with the same assessor join used for the other seven districts is the actual fix**, and should happen before District 1's numbers are used for anything — including this competition submission, if District 1 factors into the citywide totals you present.
+
+---
+
+
+
+**This model estimates potential capacity, not predicted outcomes.** Development depends on factors not captured here, including land prices, construction costs, financing availability, infrastructure capacity, owner intent, and permitting timelines.
+
+**The model does not check current base zoning.** Each policy intervention is assumed to supply its own entitlement — the tool models capacity *under the reform*, not capacity under today's zoning code. Eligibility is based on parcel physical characteristics (coverage ratio, vacancy, existing units), not on what current zoning permits.
+
+**Parcel data quality affects results.** Missing lot square footage values default to 6,000 sq ft. Missing building square footage is treated as zero — which tends to count undocumented parcels as underutilized/eligible rather than excluding them, so totals in data-sparse areas should be treated with extra caution. Zoning tag matching uses string pattern detection and may not capture every parcel correctly.
+
+**Interventions do not stack additively.** When multiple housing policies are active, the model's headline number takes the single highest-yielding intervention per parcel for units and for jobs separately. This is a deliberately conservative assumption. The interface now reports an "up to" upper bound alongside the headline figure, reflecting what the same parcels would yield if every eligible policy stacked instead — treat the true answer as falling between the two, not as either bound alone.
+
+**Per-unit and per-job area assumptions are fixed planning benchmarks**, not parcel-specific or El Paso-specific estimates: 1,000 sq ft per job, 850 sq ft per multifamily unit, 50% ground-floor coverage. See "Where 850 sq ft/unit and 1,000 sq ft/job come from, honestly" under Midrise Development above for the full reasoning and its limits — these will over- or under-state yield on any individual parcel that differs from the citywide averages they're built on.
+
+**The absorption rate is the most consequential single assumption.** At lower absorption rates, even aggressive policy combinations produce modest totals. Calibrating this rate to El Paso's historical development pace — e.g. against actual permitting activity — is recommended for scenario analysis intended to inform policy, rather than treating the default as authoritative.
+
+**Covenant data coverage may be incomplete.** The deed restriction overlay reflects recorded covenants in the dataset but does not capture all private deed restrictions, HOA rules, or informal agreements that might limit redevelopment.
+
+**No equity or displacement dimension is modeled.** The tool reports capacity by council district but does not flag concentration of yield in historically under-invested or majority-renter areas. Cross-referencing output with ACS/HMDA demographic data is recommended before using results to argue for or against a specific policy's distributional effects.
+
+---
+
+## License
+
+This repository is licensed under the MIT License (see `LICENSE`). The underlying parcel, assessor, and covenant data are sourced from public records and are not covered by the code license — see their original sources for terms of use.

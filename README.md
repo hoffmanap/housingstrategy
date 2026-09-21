@@ -49,9 +49,9 @@ Some — not all — policies require a parcel to pass an underutilization scree
 
 **This screen applies to ADUs, Lot Splits, Midrise, the parking-reform boost, and SB840 Baseline** — all policies about adding a new use to land that isn't fully built out.
 
-**It does NOT apply to Mansion Conversion or either Missing Middle tier.** These are about redeveloping a lot that already has a home on it, and coverage ratio doesn't measure whether that's a good candidate — a normal, occupied single-family home routinely covers well over 15% of its lot, which is exactly what you'd expect from a house that's actually there. An earlier version of this tool gated Missing Middle on this test anyway, which incorrectly excluded the majority of real single-family/duplex/triplex parcels (a check against actual parcel data found 61-65% of occupied 1-3 unit properties exceed the 15% threshold and were being wrongly filtered out). That's fixed: Missing Middle's eligibility is 1-3 existing units, full stop, and Mansion Conversion's is having a recorded structure to convert (`footprint_sqft` or `interior_sqft` > 0) — coverage ratio plays no role in either.
+**It does NOT apply to Mansion Conversion or either Missing Middle tier.** These are about redeveloping a lot that already has a home on it, and coverage ratio doesn't measure whether that's a good candidate — a normal, occupied single-family home routinely covers well over 15% of its lot, which is exactly what you'd expect from a house that's actually there. An earlier version of this tool gated Missing Middle on this test anyway, which incorrectly excluded the majority of real small-residential parcels (a check against actual parcel data found 61-65% of occupied 1-3 unit properties exceed the 15% threshold and were being wrongly filtered out). That's fixed: Missing Middle's eligibility is 1-3 existing units, and Mansion Conversion's is any residential building with recorded floor area — coverage ratio plays no role in either.
 
-Mansion Conversion can still show as ineligible for an unrelated reason: roughly 20-30% of otherwise-eligible parcels (depending on district) have no recorded footprint or interior square footage at all — a data gap, not a judgment that the property is a poor candidate. The parcel popup flags this distinctly when it's the cause, separate from the "no existing-conditions data at all" flag used elsewhere.
+Mansion Conversion can still net zero for reasons unrelated to coverage — see "Why a residential parcel can still net zero" in its section below. The most common is a data gap: roughly 20-30% of residential parcels (depending on district) have no recorded footprint or interior square footage. The parcel popup flags this distinctly, separate from the "no existing-conditions data at all" flag used elsewhere.
 
 ---
 
@@ -87,25 +87,24 @@ This is the one number in the model we could ground in actual regional data rath
 
 ## Base Development Scenarios
 
-The base scenario sets the fundamental land use character assumed for redevelopment. It determines whether a parcel's yield is counted as housing, jobs, or both.
+**The base scenario only decides how the checked reforms are applied — it never produces housing or jobs on its own.** Every unit and every job in the model traces back to a specific reform's own formula; the scenario is a filter on those results. With no reform checked, every scenario shows zero.
 
-### Current Use
-Parcels are assumed to redevelop consistent with their existing use as identified by the Texas assessor state code (`state_cd`). Residentially-classified parcels (state codes beginning with A or B) contribute housing yield only. Commercially or industrially-classified parcels (state codes F1 — general commercial, and F2 — industrial) contribute jobs only, calculated as 50% lot coverage at 1,000 square feet per job (default; adjustable). **This job yield only applies when at least one policy intervention is active.** With Current Use selected and no interventions checked, the model shows zero net change citywide — a true do-nothing baseline to compare reforms against, not a floor that fires on its own. (An earlier version of this tool applied the commercial job yield unconditionally under Current Use, which made "no intervention selected" misleadingly show large citywide job totals — e.g. tens of thousands of jobs with nothing checked. That's fixed.)
+| Scenario | Housing from reforms | Jobs from reforms |
+|---|---|---|
+| **Current Land Use** | Kept on residential and vacant/other parcels; dropped on commercial parcels | Kept on commercial and vacant/other parcels; dropped on residential parcels |
+| **Residential Only** | Kept | Dropped (except the Eliminate Parking Minimums job boost — see below) |
+| **Commercial Only** | Dropped | Kept |
+| **Vertical Mixed Use** | Kept | Kept |
 
-### All Residential
-All eligible parcels are assumed to redevelop as residential. Jobs are hard-zeroed across all parcels in this scenario — no policy intervention (except eliminate parking minimums, which is treated as an infrastructure policy; see below) generates jobs when this scenario is active.
+Only two reforms generate jobs at all — Midrise (ground-floor commercial) and Eliminate Parking Minimums — so a scenario that "keeps jobs" still shows zero jobs unless one of those is checked. Current Land Use classifies parcels by Texas assessor state code (A/B residential; F1/F2 commercial), falling back to the land-use description for codes those patterns don't recognize.
 
-### All Commercial
-All eligible parcels are assumed to redevelop for commercial or employment uses. Housing units are hard-zeroed. Job yield is calculated as 50% lot coverage at 1,000 square feet per job.
-
-### Vertical Mixed Use
-The only scenario in which a single parcel can produce both housing units and jobs simultaneously. Job yield follows the same 50% coverage / 1,000 sq ft formula. Housing yield follows the same rules as the residential scenario. Policy interventions that generate jobs (midrise, eliminate parking minimums) are fully active in this scenario.
+**A corrected error worth documenting:** earlier versions gave Commercial Only and Vertical Mixed Use their own flat floor yields — `(lot × 0.5) ÷ job size` in jobs and `(lot × 0.25) ÷ unit size` in units — on every underutilized parcel once *any* box was checked. Checking ADUs alone under Vertical Mixed Use reported ~50,000 units and ~85,000 jobs, versus 416 units from ADUs under any other scenario: the scenario itself was generating the yield. Those floors are removed. Checking ADUs now produces the same 416 units under Current, Residential, and Mixed Use, and zero under Commercial Only, which drops housing.
 
 ---
 
 ## Policy Interventions
 
-Policy interventions are layered on top of the base scenario. They modify the unit or job yield for eligible parcels, either by setting a specific gross yield or by boosting yield from other interventions. Multiple interventions can be active simultaneously; the model takes the **highest single-intervention yield** for units and jobs separately (they do not stack additively), except where noted.
+Policy interventions are the only source of units and jobs. The base scenario then filters their results (see above). Multiple interventions can be active simultaneously; the model takes the **highest single-intervention yield** for units and jobs separately (they do not stack additively), except where noted.
 
 ### Accessory Dwelling Units (ADUs)
 **Eligibility:** Parcels with exactly 1 existing unit (single-family). No lot-size minimum — a real ADU-enabling ordinance applies regardless of lot size; buildability at the margins is the homeowner's problem, not a citywide capacity assumption. Does not use the underutilization screen (see above).
@@ -117,29 +116,77 @@ Policy interventions are layered on top of the base scenario. They modify the un
 **Yield:** The lot becomes two buildable lots; net yield is `max(0, 2 − existing units)`.
 **Rationale:** A lot split needs to leave two genuinely buildable halves, not just any subdivision. The minimum lot size is a stated assumption, not an empirical figure — see the methodology modal for the reasoning.
 
-### Mansion Conversions
-**Eligibility:** A real recorded structure to convert — `footprint_sqft` or `interior_sqft` greater than 0. Does not use the underutilization screen or any lot-size minimum (see "Underutilized doesn't gate every policy" above) — coverage ratio doesn't determine whether a large existing home is a good conversion candidate.
-**Yield:** Usable interior area (favoring `interior_sqft` — total floor area across stories — over `footprint_sqft`, which only covers the ground floor) is discounted 15% for hallways/common areas lost in a conversion, then divided by the adjustable unit size assumption: `gross = floor((interior or footprint sq ft × 0.85) / unit size)`, minus existing units.
-**Rationale:** This intervention models the internal conversion of a single existing structure into multiple apartments — distinct from Missing Middle below, which assumes new construction or major redevelopment. Tying yield to the actual recorded structure size (rather than a flat unit count or lot size) means the formula only produces a nonzero result where a real building is recorded to convert — which also means it's correctly inapplicable on the roughly 20-30% of parcels (by district) missing that structure data. See the parcel popup's data-gap flag for this case.
+### Mansion Conversions — a square-footage rule with no parking required
+
+**What it is:** dividing an existing residential building into more units than it holds today. It's positioned as its own tool, separate from SB840 and Missing Middle, because of one defining difference: **conversions require no additional parking**, while Missing Middle and SB840 Baseline are framed around one space per unit. Because it doesn't depend on SB840's trigger, it has no unit-count threshold.
+
+**Formula:**
+```
+gross units   = floor(building sq ft ÷ 500)
+net new units = gross units − existing units   (never below 0)
+```
+- **Building sq ft** is total floor area across all stories (`interior_sqft`) when recorded, otherwise the ground-floor footprint (`footprint_sqft`).
+- **500 sq ft per unit** is the default rule, adjustable under Model Assumptions → *Conversion Size* (300–1,000). It's deliberately smaller than the 850 sq ft used for new construction, since conversions carve existing floor area into efficient units.
+- **Existing units** come from the assessor-derived `existing_units` field. A residential building recorded with 0 units (an assessor code the unit mapping doesn't cover) is treated as holding 1, so an existing home isn't credited as though it were empty.
+
+**Worked examples:**
+
+| Building | Existing units | Gross (÷ 500) | Net new |
+|---|---|---|---|
+| 900 sq ft single-family | 1 | 1 | 0 |
+| 2,000 sq ft single-family | 1 | 4 | **3** |
+| 3,200 sq ft duplex | 2 | 6 | **4** |
+| 5,000 sq ft fourplex | 4 | 10 | **6** |
+| 6,000 sq ft, 12-unit apartment | 12 | 12 | 0 |
+
+**Eligibility:** any residential parcel — Texas assessor A or B codes (excluding vacant A7/A8), or a land-use description containing "residential" — with recorded building floor area. Commercial parcels are never eligible. There is no unit-count ceiling and no underutilization/lot-coverage screen: whether a building can be divided depends on the building, not on how much of the lot it covers.
+
+**No parking, no stacking:** since conversions already assume no added parking, the separate 20% "Eliminate Parking Minimums" boost is **not** applied on top of them — that would credit the same freed-up space twice (design rule 3). Verified: adding parking reform to Mansion Conversion leaves every converted parcel credited to the conversion, unboosted.
+
+**Why a residential parcel can still net zero** (checked against real parcel data):
+- **Under 1,000 sq ft** — can't yield a second 500 sq ft unit (~830 parcels).
+- **Already at one unit per 500 sq ft or denser** — nothing left to carve out, as with most existing apartment buildings (~840 parcels).
+- **No recorded building size** — roughly 20–30% of residential parcels depending on district (~2,600 parcels). A data gap, not a judgment; the parcel popup flags it.
+- **Inside a historic district** while "Protect Historic Districts" is on (~900 parcels).
+
+**A corrected error worth documenting:** earlier versions discounted floor area by 15% and divided by the 850 sq ft new-construction unit size, so a 2,000 sq ft house yielded 2 gross − 1 existing = **1** net unit and an 1,800 sq ft house yielded **0**. About 4,300 residential parcels displayed "not eligible" purely from that rounding. Earlier versions also capped eligibility at 4 existing units. With the square-footage rule, the number of residential parcels credited with a conversion rose from about 2,100 to about 5,800, and a 2,000 sq ft single-family house now nets 3 units.
+
+### SB840's 3-unit trigger (governs Missing Middle and SB840 Baseline)
+
+SB840 applies to anything permitting *more than 3 units*, so above that line the state mandate governs and the city has no discretion. A local density-bonus program can therefore only be offered as an *alternative* for properties currently at 3 units or fewer. **Both Missing Middle tiers** use this threshold, and **SB840 Baseline** is its exact complement — every parcel falls on one side or the other, never both. (Mansion Conversion does not use this threshold — see above.)
+
+**Texas assessor state codes are the proxy**, via the `existing_units` field derived in `prep_data.py`:
+
+| Code | Units | Missing Middle (≤ 3) | SB840 Baseline (> 3, or commercial/vacant) |
+|---|---|---|---|
+| A1 — single-family | 1 | ✓ | — |
+| A51 / B1 — duplex | 2 | ✓ | — |
+| A53 / B3 — triplex | 3 | ✓ | — |
+| A54 / B4 / B9 — quadplex | 4 | — | ✓ |
+| A55 / B5 / B7 — fiveplex | 5 | — | ✓ |
+| A56 / B6 / B8 — sixplex | 6 | — | ✓ |
+| A52 / B2 — apartment | 12 | — | ✓ |
+
+The threshold is a single named constant in the code (`SB840_TRIGGER_MAX_UNITS = 3`) so it can't drift apart between the two programs that share it.
 
 ### Missing Middle Housing (4–8 Units) & Missing Middle Housing (9–16 Units)
 
-**Why these caps and this eligibility rule exist — Texas SB840:** SB840 requires that any zone permitting more than 3 units must allow 4 floors and the city's maximum density (145 units/acre) — a state mandate the city cannot restrict. The one exception is a "workaround": on parcels that currently have 1–3 existing units (single-family, duplex, or triplex), the city may impose additional local limits in exchange for offering a density bonus. Both Missing Middle checkboxes model this bonus program specifically — which is why eligibility is restricted to exactly 1, 2, or 3 existing units.
+**Why these caps and this eligibility rule exist — Texas SB840:** SB840 requires that any zone permitting more than 3 units must allow 4 floors and the city's maximum density (145 units/acre) — a state mandate the city cannot restrict. The one exception is a "workaround": on parcels that currently have 1–3 existing units (single-family, duplex, or triplex) — i.e. those *not* already triggering the bill — the city may impose additional local limits in exchange for offering a density bonus. Both Missing Middle checkboxes model this bonus program specifically, which is why eligibility is restricted to parcels currently at 3 units or fewer.
 
-**Eligibility:** Exactly 1, 2, or 3 existing units. Does not use the underutilization screen (see above) — an earlier version of this tool did, which incorrectly excluded the majority of real candidates (61-65% of occupied 1-3 unit parcels exceed the 15% coverage threshold, since that's just what a normal house on a normal lot looks like).
+**Eligibility:** Between 1 and 3 existing units, inclusive (single-family, duplex, or triplex) — above 3 units SB840 itself governs, so the bonus program isn't available. Does not use the underutilization screen (see above) — an earlier version of this tool did, which incorrectly excluded the majority of real candidates (a check against actual parcel data found 61-65% of occupied small-residential parcels exceed the 15% coverage threshold, since that's just what a normal house on a normal lot looks like).
 
 **Yield — same formula, different cap:**
 1. Compute the buildable envelope: 35 ft height cap (≈3 floors, at a standard ~11.7 ft floor-to-floor height — a local limit below SB840's full 4-floor mandate, part of the city's workaround) × 50% lot coverage × lot area, divided by the adjustable unit size assumption — `envelope units = floor((lot sq ft × 0.5 × 3) / unit size)`.
 2. Subtract existing units from the envelope first, to get the additional capacity the site can support beyond what's already there.
 3. Cap that additional capacity at **8** (the 4-8 checkbox) or **16** (the 9-16 checkbox) — up to and including that number.
 
-This means the two checkboxes only diverge once a lot's envelope has enough spare capacity to exceed 8 — on small lots where the site itself can't support more than 8 *additional* units regardless of which is chosen, both checkboxes agree (correctly, since the physical constraint binds before the policy cap does). On larger single-family/duplex/triplex lots, or with a smaller unit size assumption, the 16-unit cap allows meaningfully more than the 8-unit cap.
+This means the two checkboxes only diverge once a lot's envelope has enough spare capacity to exceed 8 — on small lots where the site itself can't support more than 8 *additional* units regardless of which is chosen, both checkboxes agree (correctly, since the physical constraint binds before the policy cap does). On larger 1-3 unit lots, or with a smaller unit size assumption, the 16-unit cap allows meaningfully more than the 8-unit cap.
 
 **A known limitation — unit size vs. lot width:** this formula sizes buildings by dividing available floor area by an assumed unit size. Dan Parolek's *Missing Middle Housing* argues building size (and therefore unit count) should instead be driven by lot width, which better reflects a building's street-facing massing and fit within existing neighborhood character. This dataset has lot area but not lot width, and approximating width from parcel geometry (e.g. a bounding-box calculation) is unreliable for irregular or non-rectangular parcels — so unit size is used here as a practical substitute, not because it's judged to be the more theoretically correct approach. If reliable lot-width or frontage data becomes available, switching to Parolek's method would be a meaningful improvement.
 
 ### SB840 Baseline (Commercial & 4+ Unit Parcels) — a last resort, not a recommended outcome
 
-**What this models:** everything the Missing Middle bonus program above does *not* cover — commercial parcels, vacant land, and anything already at 4+ units (a quadplex or larger, or plainly described as multifamily/multiplex). These parcels aren't the 1-3 unit properties the Missing Middle "workaround" is offered to, so SB840's flat mandate applies to them directly and in full: 4 floors (the state's actual minimum — not the Missing Middle workaround's reduced 35 ft height) and the citywide maximum density, with no local discretion to restrict it further.
+**What this models:** everything the Missing Middle bonus program above does *not* cover — commercial parcels, vacant land, and anything already **above** 3 units (a quadplex or larger, or plainly multifamily). These parcels aren't the 1-3 unit properties the Missing Middle "workaround" is offered to, so SB840's flat mandate applies to them directly and in full: 4 floors (the state's actual minimum — not the Missing Middle workaround's reduced 35 ft height) and the citywide maximum density, with no local discretion to restrict it further.
 
 **Eligibility:** Underutilized parcels that are commercial, vacant (0 existing units), or already at 4+ units.
 
@@ -179,7 +226,7 @@ This intervention is treated differently from the housing interventions. It is a
 - Jobs: `(lotSqft × 0.5) / 1000` (ground-floor commercial space at 1,000 sq ft per job)
 
 **When combined with other interventions:**
-- Units from other policies are multiplied by 1.20 (a 20% boost reflecting that eliminating parking requirements enables more of the lot to be used for building)
+- Units from other policies are multiplied by 1.20 (a 20% boost reflecting that eliminating parking requirements enables more of the lot to be used for building) — **except Midrise and Mansion Conversion**, which already model parking directly (Midrise by skipping its own parking-land deduction, Mansion Conversion by assuming no parking at all). Boosting them again would count the same freed-up space twice.
 - Jobs: `(lotSqft × 0.5) / 1000` (same formula, applied independently)
 
 **Single-use rule:**

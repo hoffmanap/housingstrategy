@@ -298,12 +298,12 @@
         
         <div class="control-group tooltip-container" style="margin-bottom: 15px;">
             <label style="margin-bottom: 0;">Base Scenario <span class="info-icon">i</span></label>
-            <div class="tooltip">Determines the primary allowed land-use output of the simulation.</div>
+            <div class="tooltip">Decides how the reforms you check are counted on each parcel. It never adds housing or jobs on its own — with no reform checked, every scenario shows zero.</div>
             <select id="baseScenario" style="margin-top: 6px;">
-                <option value="current">Current Land Use Stays (Default Math)</option>
-                <option value="residential">Residential Only (Zeroes out Jobs)</option>
-                <option value="commercial">Commercial Only (Zeroes out Housing)</option>
-                <option value="mixed">Vertical Mixed Use (Enforces Job/Housing Blend)</option>
+                <option value="current">Current Land Use (each parcel keeps its use)</option>
+                <option value="residential">Residential Only (count housing, drop jobs)</option>
+                <option value="commercial">Commercial Only (count jobs, drop housing)</option>
+                <option value="mixed">Vertical Mixed Use (count both)</option>
             </select>
         </div>
 
@@ -320,17 +320,17 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="mansion_conversions"> Mansion Conversions
             <span class="info-icon">i</span>
-            <div class="tooltip">Allows a large legacy home to be internally converted into up to 4 individual apartments.</div>
+            <div class="tooltip">Divides any existing residential building into more units: 1 unit per 500 sq ft of building (adjustable under Model Assumptions), minus the units already there — with no additional parking required. A 2,000 sq ft single-family house nets 3 new units. Positioned as its own tool, separate from SB840 and Missing Middle, precisely because it needs no parking.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_4_8"> Missing Middle (4-8 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">A density bonus for single-family/duplex/triplex parcels: 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 units. Not eligible on vacant land or parcels already at 4+ units.</div>
+            <div class="tooltip">A density bonus offered as an alternative for parcels currently at 3 units or fewer (single-family, duplex, triplex): 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 additional units. Above 3 units SB840 itself applies instead — see the SB840 Baseline option.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_9_16"> Missing Middle (9-16 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 units instead of 8 — meaningfully larger on bigger single-family/duplex/triplex lots with smaller unit sizes.</div>
+            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 additional units instead of 8 — meaningfully larger on bigger 1-3 unit lots with smaller unit sizes.</div>
         </label>
         
         <label class="checkbox-group tooltip-container">
@@ -383,7 +383,18 @@
             <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
                 <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
                 <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
-                    Controls unit yield from Midrise Development only (other interventions use flat unit counts). <strong>Increase</strong> if you expect future construction to skew toward larger family-sized 2–3BR units — this LOWERS the unit count. <strong>Decrease</strong> toward 600–700 if you expect efficient studios/1BR to dominate, or if recent local multifamily permits run smaller than 850 sq ft — this RAISES the unit count.
+                    Controls unit yield for new construction: Midrise, both Missing Middle tiers, and SB840 Baseline (Mansion Conversion uses its own Conversion Size below). <strong>Increase</strong> if you expect future construction to skew toward larger family-sized 2–3BR units — this LOWERS the unit count. <strong>Decrease</strong> toward 600–700 if you expect efficient studios/1BR to dominate, or if recent local multifamily permits run smaller than 850 sq ft — this RAISES the unit count.
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Conversion Size: <span id="conversionSize-val" style="margin-left: 5px; color: var(--primary);">500</span> sq ft/unit</label>
+            <input type="range" id="conversionSizeAssumption" min="300" max="1000" value="500" step="25">
+            <div class="tooltip-container" style="justify-content: center; margin-top: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-muted); text-decoration: underline dotted; cursor: help;">Which way should I move this? <span class="info-icon" style="margin-left:3px;">i</span></span>
+                <div class="tooltip" style="left: 50%; transform: translateX(-50%); top: 18px; max-width: 260px;">
+                    Mansion Conversion only: one unit for every this-many square feet of an existing residential building. Smaller than new-construction Unit Size because conversions carve existing floor area into efficient units. <strong>Decrease</strong> toward 400 if studios and micro-units are realistic in converted homes — RAISES yield. <strong>Increase</strong> toward 700–800 if converted units need to be family-sized, or if interior walls and stairs lose more space than expected — LOWERS yield.
                 </div>
             </div>
         </div>
@@ -462,13 +473,16 @@
         parcel, separately for units and jobs — it does not add multiple interventions
         together. Click any parcel on the map to see exactly which rule produced its yield.</p>
 
-        <p><strong>With no policies checked and the default "Current Land Use Stays" scenario,
-        the model shows zero net change citywide</strong> — this is a deliberate baseline, not
-        an empty state. (An earlier version of this tool assigned a baseline job yield to
-        underutilized commercial parcels even with nothing checked, which made "no
-        intervention" misleadingly show large job totals. That's fixed: the "current use"
-        scenario's job floor now only applies once at least one policy is active, so toggling
-        everything off is a true do-nothing counterfactual to compare reforms against.)</p>
+        <p><strong>The base scenario only decides how reforms are applied — it never produces
+        housing or jobs on its own.</strong> Every unit and job traces back to a specific checked
+        reform. The scenario then filters those results: <em>Residential Only</em> keeps units and
+        drops jobs, <em>Commercial Only</em> keeps jobs and drops units, <em>Vertical Mixed Use</em>
+        keeps both exactly as the reforms produced them, and <em>Current Land Use</em> keeps each
+        parcel to its existing use (commercial → jobs, residential → units). With nothing checked,
+        every scenario shows zero. (Earlier versions gave Commercial and Mixed Use their own flat
+        floor yields on every underutilized parcel once any box was checked — so Mixed Use plus
+        ADUs alone reported ~50,000 units and ~85,000 jobs that no selected reform created, versus
+        416 units from ADUs under any other scenario. That's removed.)</p>
 
         <h3>Market Absorption Rate — and how we chose 8%</h3>
         <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
@@ -524,9 +538,24 @@
         Missing Middle checkboxes model — a bonus program specifically for those parcels, capped at
         8 or 16 additional units depending on which is selected, using a reduced 35 ft height limit
         (≈3 floors) rather than SB840's full 4-floor mandate.</p>
-        <p>Everything else — commercial parcels, vacant land, and anything already at 4+ units (a
-        quadplex or larger, or plainly described as multifamily/multiplex) — isn't eligible for the
-        Missing Middle bonus, because it isn't the 1-3 unit parcel that bonus is offered to. Instead,
+        <p><strong>Why 3 units is the dividing line for Missing Middle:</strong> SB840 is triggered
+        by anything permitting <em>more than 3 units</em>. Above that line the state mandate simply
+        applies and the city has no discretion — so a local density-bonus program can only be
+        offered as an alternative to properties currently at 3 units or fewer. Texas assessor state
+        codes are the proxy: A1 single-family (1 unit), A51/B1 duplex (2), and A53/B3 triplex (3)
+        fall inside; A54/B4/B9 quadplex (4), A52/B2 apartment, and the B5–B8 codes fall outside,
+        where SB840 governs directly. Missing Middle and SB840 Baseline are exact complements across
+        this line, so every parcel gets one or the other, never both.</p>
+        <p><strong>Mansion Conversion is a separate tool with no unit-count threshold.</strong>
+        It isn't an SB840 program and doesn't rely on SB840's 3-unit trigger. Its distinguishing
+        feature is that it requires <em>no additional parking</em>, while Missing Middle and SB840
+        Baseline are framed around one space per unit. See "How Mansion Conversion is calculated"
+        below. A parcel can be eligible for both Mansion Conversion and another program; that isn't
+        double-counting, because the engine credits only the single highest-yielding intervention
+        per parcel.</p>
+        <p>Everything else — commercial parcels, vacant land, and anything above 3 units —
+        isn't eligible for the Missing Middle bonus, because it isn't the 1-3 unit parcel that
+        bonus is offered to. Instead,
         <strong>SB840's flat mandate applies directly</strong>, modeled as its own "SB840 Baseline"
         checkbox: 4 floors (the state's actual minimum, not the workaround's reduced height) at the
         same coverage and unit-size approach. Midrise's floor selector also starts at 4 for the same
@@ -558,13 +587,36 @@
         triplex parcels: a normal, occupied home routinely covers well over 15% of its lot, so the
         low-coverage screen was filtering out exactly the properties this policy is supposed to
         reach. That's fixed — Missing Middle and Mansion Conversion now check only what actually
-        determines their eligibility (1-3 existing units, and a recorded structure to convert,
-        respectively), not building coverage.</p>
-        <p>Mansion Conversion can still show "not eligible" for a different reason: it needs real
-        <code>footprint_sqft</code> or <code>interior_sqft</code> data to size the conversion, and
-        that's missing for roughly 20-30% of otherwise-eligible parcels depending on district — a
-        data gap, not a judgment that the property is a poor candidate. The parcel popup flags this
-        distinctly when it's the cause.</p>
+        determines their eligibility (1–3 existing units for Missing Middle; a residential building
+        with recorded floor area for Mansion Conversion), not building coverage.</p>
+
+        <h3>How Mansion Conversion is calculated</h3>
+        <p><strong>Any residential building can be divided into more units than it has now, at one
+        unit per 500 sq ft of building, with no parking required.</strong></p>
+        <p style="font-family: monospace; font-size: 12.5px; background: var(--surface-alt); padding: 8px 10px; border-radius: 6px;">
+        gross units = floor(building sq ft ÷ 500)<br>
+        net new units = gross units − existing units (never below 0)</p>
+        <p>A 2,000 sq ft single-family house: 2,000 ÷ 500 = 4 units, minus the 1 already there =
+        <strong>3 net new units</strong>. A 3,200 sq ft duplex: 6 − 2 = 4 net new. The 500 sq ft
+        figure is adjustable under Model Assumptions (Conversion Size). "Building sq ft" uses total
+        floor area across all stories when recorded, otherwise the ground-floor footprint.</p>
+        <p><strong>Who's eligible:</strong> any residential parcel — Texas assessor A or B codes
+        (excluding vacant A7/A8), or a land-use description containing "residential." Commercial
+        parcels are never eligible. There is no unit-count ceiling and no lot-coverage screen. A
+        residential building recorded with 0 units (an assessor code the unit mapping doesn't cover)
+        is treated as holding 1, so an existing home isn't credited as though it were empty.</p>
+        <p><strong>Why a parcel might still net zero:</strong> a house under 1,000 sq ft can't yield
+        a second 500 sq ft unit; a building already at one unit per 500 sq ft or denser has nothing
+        left to carve out; roughly 20–30% of residential parcels (varies by district) have no recorded
+        building size at all, which the parcel popup flags as a data gap rather than a judgment; and
+        parcels inside historic districts are excluded while "Protect Historic Districts" is on.</p>
+        <p><strong>No parking, no stacking:</strong> because conversions already assume no added
+        parking, the separate 20% "Eliminate Parking Minimums" boost is not applied on top of them —
+        that would credit the same freed-up space twice.</p>
+        <p>(Earlier versions discounted floor area by 15% and divided by the 850 sq ft
+        new-construction unit size, so a 2,000 sq ft house yielded just 1 net unit and an 1,800 sq ft
+        house yielded 0. About 4,300 residential parcels read as "not eligible" purely from that
+        rounding. They also capped eligibility at 4 existing units.)</p>
 
         <h3>Midrise's density cap, and why nothing is counted twice</h3>
         <p>Midrise sizes its unit count from the building envelope (lot × 50% coverage × floors ÷
@@ -738,6 +790,7 @@
             setSlider('absorption', 8, 'absorption-val', '%');
             setSlider('unitSizeAssumption', 850, 'unitSize-val', '');
             setSlider('jobSizeAssumption', 1000, 'jobSize-val', '', true);
+            setSlider('conversionSizeAssumption', 500, 'conversionSize-val', '');
             setSlider('parkingBoostAssumption', 20, 'parkingBoost-val', '%');
 
             runSimulation();
@@ -750,6 +803,9 @@
         });
         document.getElementById('unitSizeAssumption').addEventListener('input', function(e) {
             document.getElementById('unitSize-val').innerText = e.target.value;
+        });
+        document.getElementById('conversionSizeAssumption').addEventListener('input', function(e) {
+            document.getElementById('conversionSize-val').innerText = e.target.value;
         });
         document.getElementById('jobSizeAssumption').addEventListener('input', function(e) {
             document.getElementById('jobSize-val').innerText = parseInt(e.target.value).toLocaleString();
@@ -1039,12 +1095,13 @@
                 const absorptionRate = parseFloat(document.getElementById('absorption').value) / 100;
                 const unitSizeAssumption = parseFloat(document.getElementById('unitSizeAssumption').value) || 850;
                 const jobSizeAssumption = parseFloat(document.getElementById('jobSizeAssumption').value) || 1000;
+                // Mansion Conversion: 1 unit per this many sq ft of an existing residential building.
+                const conversionSqftPerUnit = parseFloat(document.getElementById('conversionSizeAssumption').value) || 500;
                 const parkingBoostMultiplier = 1 + (parseFloat(document.getElementById('parkingBoostAssumption').value) || 20) / 100;
 
                 // Formula constants — documented assumptions, not sourced to El Paso-specific data
                 // (see README / methodology modal for full reasoning on each).
                 const MIN_SPLIT_LOT_SIZE = 3500;       // sq ft — a lot split must leave two buildable halves
-                const MANSION_CONVERSION_EFFICIENCY = 0.85; // fraction of interior area usable after conversion (rest lost to hallways/common areas)
                 const CITYWIDE_DENSITY_PER_ACRE = 145;  // units/acre — citywide density standard; used by Midrise (Missing Middle and SB840 Baseline use the floors × coverage ÷ unit-size envelope instead)
                 const SQFT_PER_ACRE = 43560;
                 const PARKING_SQFT_PER_SPACE = 300;     // sq ft consumed per required off-street parking space, at an assumed 1 space/unit
@@ -1057,6 +1114,13 @@
                 // max density (145/acre) outright — the city has no discretion to limit it further.
                 const MISSING_MIDDLE_WORKAROUND_FLOORS = 3;
                 const MISSING_MIDDLE_COVERAGE = 0.5; // consistent with the coverage assumption used elsewhere in the model
+                // SB840's trigger: the bill applies to anything permitting MORE than 3 units, so
+                // the density-bonus "workaround" can only be offered as an alternative to properties
+                // currently at 3 units or fewer. Missing Middle (both tiers) and SB840 Baseline are
+                // exact complements across this line, so they key off one constant and stay mutually
+                // exclusive. Texas assessor codes: A1 single-family=1, A51/B1 duplex=2, A53/B3
+                // triplex=3 are inside; A54/B4/B9 quadplex=4 and above are outside (SB840 governs them).
+                const SB840_TRIGGER_MAX_UNITS = 3;
                 const SB840_MANDATED_FLOORS = 4; // the state-mandated minimum wherever >3 units are allowed — applies to the flat SB840 baseline and sets Midrise's floor-count minimum
                 const targetDistrict = document.getElementById('districtFilter').value;
                 const applyTransitOnly = document.getElementById('transitOnly').checked;
@@ -1104,6 +1168,7 @@
                     const isProtectedHistoric = (applyHistoricProtection && props._inHistoric);
                     const isOutsideTransit = (applyTransitOnly && !props._inTransit);
                     let meetsUnderutilized = false;
+                    let parcelIsResidential = false; // hoisted so the popup uses the same classification as the engine
 
                     // FIX 1: Removed the "activePolicies.length > 0" requirement from this main block
                     // This allows Base Scenarios to calculate independently
@@ -1128,6 +1193,7 @@
                             if (u.includes('COMMERCIAL') || u.includes('INDUSTRIAL') || u.includes('UTILIT')) isCommercial = true;
                             else if (u.includes('RESIDENTIAL')) isResidential = true;
                         }
+                        parcelIsResidential = isResidential;
                         const bldgRatio = (lotSqft > 0) ? (bldgSqft / lotSqft) : 1;
                         
                         const isUpzoning = (baseScenario === 'mixed' || baseScenario === 'commercial');
@@ -1161,18 +1227,31 @@
                                 ruleLabel = 'Lot Split';
                             }
 
-                            // --- Mansion Conversion: now tied to the ACTUAL existing structure,
-                            // not a flat unit count keyed off lot size. Usable interior area (favoring
-                            // interior_sqft — total floor area across stories — over footprint_sqft,
-                            // which only covers the ground floor) is discounted 15% for hallways/
-                            // common areas lost in a conversion, then divided by the adjustable unit
-                            // size assumption. Requires a real recorded structure to convert — a
-                            // vacant or data-gap parcel has nothing to convert.
-                            else if (policy === 'mansion_conversions') {
-                                const usableInterior = (interiorSqft > 0 ? interiorSqft : bldgSqft) * MANSION_CONVERSION_EFFICIENCY;
-                                if (usableInterior > 0) {
-                                    const gross = Math.floor(usableInterior / unitSizeAssumption);
-                                    net_u = Math.max(0, gross - existingUnits);
+                            // --- Mansion Conversion: a square-footage rule, with NO parking required.
+                            // Any residential building (assessor A/B codes, or a use description
+                            // containing RESIDENTIAL) can be divided into more units than it has now:
+                            //     gross units = floor(building sq ft ÷ conversion sq ft per unit)
+                            //     net units   = gross − existing units (never below 0)
+                            // Building sq ft favors interior_sqft (all floors) over footprint_sqft
+                            // (ground floor only). Default 500 sq ft/unit, adjustable in the sidebar.
+                            // No unit-count ceiling and no underutilization screen: whether a house
+                            // can be carved into more units depends on the building, not on lot
+                            // coverage, and this program is positioned as its own tool — separate
+                            // from SB840's 3-unit trigger — precisely because it carries no parking
+                            // requirement. A residential building recorded with 0 existing units
+                            // (an unmapped assessor code) is treated as holding 1, so a structure
+                            // that clearly exists isn't credited as if it were empty.
+                            // Commercial parcels are never eligible — isResidential excludes them.
+                            // (Earlier versions discounted floor area 15% and divided by the 850 sq ft
+                            // new-construction unit size, so a 2,000 sq ft house yielded 2 gross − 1
+                            // existing = 1 net, and an 1,800 sq ft house yielded 0 — about 4,300
+                            // residential parcels read as "not eligible" purely from that rounding.)
+                            else if (policy === 'mansion_conversions' && isResidential) {
+                                const buildingSqft = interiorSqft > 0 ? interiorSqft : bldgSqft;
+                                if (buildingSqft > 0) {
+                                    const gross = Math.floor(buildingSqft / conversionSqftPerUnit);
+                                    const existingForConversion = Math.max(existingUnits, 1);
+                                    net_u = Math.max(0, gross - existingForConversion);
                                     ruleLabel = 'Mansion Conversion';
                                 }
                             }
@@ -1187,13 +1266,13 @@
                             // including 16 additional units), not a gross count reduced afterward.
                             // Not eligible on vacant land or parcels already at 4+ units — those
                             // aren't the 1-3 unit parcels this bonus program is offered to.
-                            else if (policy === 'missing_middle_4_8' && existingUnits >= 1 && existingUnits <= 3) {
+                            else if (policy === 'missing_middle_4_8' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
                                 const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(8, additionalCapacity);
                                 ruleLabel = 'Missing Middle (max 8)';
                             }
-                            else if (policy === 'missing_middle_9_16' && existingUnits >= 1 && existingUnits <= 3) {
+                            else if (policy === 'missing_middle_9_16' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
                                 const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(16, additionalCapacity);
@@ -1212,7 +1291,7 @@
                             // categories SB840's flat mandate covers. (An earlier version also
                             // checked isCommercial separately here, which was redundant: any parcel
                             // passing the 1-3 unit guard already falls in one of those categories.)
-                            else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= 3)) {
+                            else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS)) {
                                 const gross = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption);
                                 net_u = Math.max(0, gross - existingUnits);
                                 ruleLabel = 'SB840 Baseline';
@@ -1304,9 +1383,13 @@
                                 // which is a far larger effect than 20%). Applying the multiplier on
                                 // top would count the same policy benefit twice — so when Midrise is
                                 // the winning rule for units, the multiplier is not applied.
-                                const midriseDroveUnits = (props._winningRuleUnits || '').startsWith('Midrise');
+                                // Mansion Conversion likewise already assumes NO parking is required,
+                                // so boosting it again for parking reform would credit the same
+                                // freed-up space twice (design rule 3).
+                                const winning = props._winningRuleUnits || '';
+                                const parkingAlreadyModeled = winning.startsWith('Midrise') || winning.startsWith('Mansion');
                                 if (baseScenario !== 'commercial') {
-                                    const unitMultiplier = midriseDroveUnits ? 1 : parkingBoostMultiplier;
+                                    const unitMultiplier = parkingAlreadyModeled ? 1 : parkingBoostMultiplier;
                                     maxNetUnits = Math.max(maxNetUnits * unitMultiplier, parkingAloneFloor);
                                     stackedUnits = Math.max(stackedUnits * unitMultiplier, parkingAloneFloor);
                                 }
@@ -1317,48 +1400,26 @@
                             }
                         }
 
-                        // BASE SCENARIO: applies after policy loop and parking unit boost
-                        // 'residential' hard-zeros scenario-derived jobs — but parking job boost
-                        // is added back in afterwards so it always survives.
-                        // NOTE: every scenario floor below requires at least one active policy.
-                        // A scenario is a framing for how reform yield is counted, not a source of
-                        // yield on its own — without this gate, simply selecting "Commercial Only"
-                        // or "Vertical Mixed Use" with nothing checked produced large citywide
-                        // totals, the same bug class already fixed for "current use."
-                        const anyPolicyActive = activePolicies.length > 0;
+                        // BASE SCENARIO — a pure FILTER on what the selected reforms produced.
+                        // It never generates units or jobs by itself. Every unit and job in the
+                        // model must trace back to a specific policy's own formula; the scenario
+                        // only decides which of those outputs count on this parcel.
+                        //   residential → keep units, zero jobs (parking job boost re-added below)
+                        //   commercial  → keep jobs, zero units
+                        //   mixed       → keep both, exactly as the reforms produced them
+                        //   current     → single-use by assessor class (commercial → jobs only,
+                        //                 residential → units only; vacant/other pass through)
+                        // (Earlier versions gave 'commercial' and 'mixed' their own flat floors —
+                        // (lot × 0.5) ÷ job size in jobs, (lot × 0.25) ÷ unit size in units — on every
+                        // underutilized parcel once ANY box was checked. Mixed + ADUs alone produced
+                        // ~50,000 units and ~85,000 jobs that no selected reform created. Removed.)
                         if (baseScenario === 'commercial') {
                             maxNetUnits = 0; stackedUnits = 0;
-                            if (meetsUnderutilized && anyPolicyActive) {
-                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                            }
                         } else if (baseScenario === 'mixed') {
-                            if (meetsUnderutilized && anyPolicyActive) {
-                                maxNetJobs = Math.max(maxNetJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                                stackedJobs = Math.max(stackedJobs, (lotSqft * 0.5) / jobSizeAssumption);
-                                // Floor applies as a lower bound regardless of WHICH policies are active —
-                                // previously this only applied when NO policy was checked at all, so an
-                                // active policy that happened to produce 0 units on this specific parcel
-                                // would silently disable the floor and reduce the total.
-                                const mixedUnitFloor = (lotSqft * 0.25) / unitSizeAssumption;
-                                maxNetUnits = Math.max(maxNetUnits, mixedUnitFloor);
-                                stackedUnits = Math.max(stackedUnits, mixedUnitFloor);
-                            }
+                            // no-op: both units and jobs from the reforms pass through unchanged
                         } else if (baseScenario === 'residential') {
-                            maxNetJobs = 0; stackedJobs = 0; // zeroes scenario/policy jobs; parking boost re-added below
+                            maxNetJobs = 0; stackedJobs = 0;
                         } else {
-                            // current use: enforce single-use based on assessor classification
-                            // F1/F2 commercial parcels → jobs only, and ONLY from a policy that
-                            //   actually generates jobs (Midrise, Eliminate Parking Minimums —
-                            //   both compute their own job yield directly in the policy loop above).
-                            //   A flat "commercial floor" used to apply here whenever ANY policy was
-                            //   active, including purely-residential ones like Mansion Conversions —
-                            //   meaning checking a units-only policy could push jobs to near 100% of
-                            //   target with no job-generating mechanism actually selected. Removed:
-                            //   it was redundant with what midrise/parking reform already compute,
-                            //   and its only real effect was this bug.
-                            // A/B residential parcels → units only; zero any jobs not from policy
-                            // All other/vacant → pass through whatever the policy loop set
                             if (isCommercial) {
                                 maxNetUnits = 0; stackedUnits = 0;
                             } else if (isResidential) {
@@ -1470,10 +1531,10 @@
                         : '';
                     // Mansion Conversion needs real footprint/interior data to size the conversion —
                     // flag when that's specifically what's missing, on a parcel otherwise eligible
-                    // (1-3 existing units), so this doesn't read as "not a good candidate" when it's
+                    // (a residential building), so this doesn't read as "not a good candidate" when it's
                     // actually just "no structure size recorded for this parcel."
                     const mansionDataGap = (activePolicies.includes('mansion_conversions')
-                        && existingUnits >= 1 && existingUnits <= 3
+                        && parcelIsResidential
                         && bldgSqft === 0 && interiorSqft === 0 && !noSourceData)
                         ? '<br><span style="color:#b45309;">⚠ No building size recorded for this parcel — Mansion Conversion can\'t size a conversion without it, even if a real structure exists here.</span>'
                         : '';

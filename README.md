@@ -35,6 +35,7 @@ These emerged from auditing the formulas and are worth stating explicitly, since
 2. **Adding a policy can never reduce the total.** Where two mechanisms both apply to a parcel, the model takes the larger rather than letting one replace the other. Earlier versions had several cases where checking an additional box lowered the citywide number — always because a value was silently replaced by a different formula instead of combined with what was already there.
 3. **The same physical capacity is never counted twice, and yield with no construction policy behind it doesn't exist.** Where two policies would describe the same square footage (Midrise and the parking-reform unit boost both freeing the same land), the model takes the maximum, not the sum. Where a policy had no construction mechanism of its own but still produced yield — parking reform's standalone job formula, identical to Midrise's and firing even with no construction policy active — that yield is removed rather than deduplicated, since nothing built it.
 4. **A geographic constraint applies to what it actually governs, not to the whole parcel.** Historic district protection blocks new construction and exterior-changing policies, but not Mansion Conversion, which changes nothing external. An earlier version applied it as a blanket exclusion from every calculation on the parcel, which silently zeroed policies the constraint was never meant to touch.
+5. **A fallback assumption doesn't apply once the data explicitly contradicts it.** "No multifamily allowed" defaulted to "but a single-family home is still fine" — true for an ordinary residential covenant, false for one restricted to a church or a public building, which the data said outright (`SINGLE FAMILY ONLY: 'N'`, `RESTRICTIONS: 'Public Building Only'`). The fallback ran anyway, crediting a housing unit on land that permits no housing.
 
 ---
 
@@ -261,13 +262,17 @@ The covenant data uses the following fields:
 
 | Field | Meaning |
 |---|---|
-| `RESTRICTIONS` | Descriptive label — not used in calculations |
+| `RESTRICTIONS` | Descriptive label — not used directly in calculations, but see below |
 | `SINGLE FAMILY ONLY` | `Y` = parcel is restricted to one single-family detached unit; multifamily and commercial uses are prohibited |
-| `allow_mf` | `false` = multifamily is not permitted; units are capped at 1 |
+| `allow_mf` | `false` = multifamily is not permitted |
 | `allow_com` | `false` = commercial uses are not permitted; jobs are set to zero |
 | `max_units` | Integer hard cap on total units; yield cannot exceed this value regardless of intervention |
 
 Covenant restrictions apply regardless of which base scenario or policy interventions are active. A parcel with `SINGLE FAMILY ONLY = Y` will never produce more than 1 unit and will never produce jobs, even under a vertical mixed use scenario with midrise and parking reform enabled.
+
+**A second, different restriction pattern — checked against every active covenant in the dataset:** 38 real covenant records have `allow_mf: false` and `allow_com: false` simultaneously, *without* `SINGLE FAMILY ONLY` set to `Y`. Their `RESTRICTIONS` text is uniformly some form of "[a specific use] Only" — Public Building Only, Church Only, School Only, Senior Living Facility Only, Skilled Nursing Only, Self-Storage Only, Nursery Use Only, Utilities Only, Drainage Only. These parcels are deed-restricted to one specific non-residential use, not to ordinary single-family housing, and are now correctly capped at **0 units and 0 jobs** rather than 1 unit.
+
+**A corrected error worth documenting:** an earlier version applied the same "cap units at 1" treatment used for ordinary single-family covenants to this second pattern as well — `allow_mf === 'false'` alone triggered `Math.min(finalUnits, 1)`, on the reasoning that "no multifamily" still implies a single detached home is permitted. That reasoning holds for genuine single-family-zoned covenants, but not for one restricted to, say, a church or a public building — those don't permit a single-family home either. Found via a real example: a 233,762 sq ft parcel in District 8 (PIDN `T07099900100100`), deed-restricted "Public Building Only," was showing "Net yield: 1 units, 0 jobs" under a full-reform-package run — the covenant was correctly zeroing jobs but incorrectly crediting one housing unit on land that permits no housing at all. Checked exhaustively against all 38 affected records after the fix: zero exceptions, all now show 0 units and 0 jobs.
 
 ---
 

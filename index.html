@@ -285,7 +285,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" id="protectHistoric" checked> Protect Historic Districts
             <span class="info-icon">i</span>
-            <div class="tooltip">Prevents new density calculations on any parcel falling within historically designated boundaries.</div>
+            <div class="tooltip">Blocks new-construction and exterior-changing interventions (Lot Splits, Missing Middle, Midrise, SB840 Baseline) on parcels within historically designated boundaries. Mansion Conversion is exempt — it's an interior reconfiguration with no exterior change, so it isn't what historic review governs.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" id="applyDeedRestrictions"> Enforce Deed Restrictions
@@ -320,17 +320,17 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="mansion_conversions"> Mansion Conversions
             <span class="info-icon">i</span>
-            <div class="tooltip">Divides any existing residential building into more units: 1 unit per 500 sq ft of building (adjustable under Model Assumptions), minus the units already there — with no additional parking required. A 2,000 sq ft single-family house nets 3 new units. Positioned as its own tool, separate from SB840 and Missing Middle, precisely because it needs no parking.</div>
+            <div class="tooltip">Divides any existing residential building into more units: 1 unit per 500 sq ft of building (adjustable under Model Assumptions), minus the units already there. No parking required (unlike Missing Middle and SB840 Baseline, which assume 1 space/unit) — that's what makes this tool distinct. A 2,000 sq ft single-family house nets 3 new units. The one policy NOT blocked by "Protect Historic Districts": it's an interior conversion with no exterior change.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_4_8"> Missing Middle (4-8 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">A density bonus offered as an alternative for parcels currently at 3 units or fewer (single-family, duplex, triplex): 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 additional units. Above 3 units SB840 itself applies instead — see the SB840 Baseline option.</div>
+            <div class="tooltip">A density bonus offered as an alternative for parcels currently at 3 units or fewer (single-family, duplex, triplex): 35 ft height (~3 floors) at 50% coverage ÷ unit size, capped at 8 additional units. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked. Above 3 units SB840 itself applies instead — see the SB840 Baseline option.</div>
         </label>
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="missing_middle_9_16"> Missing Middle (9-16 Units)
             <span class="info-icon">i</span>
-            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 additional units instead of 8 — meaningfully larger on bigger 1-3 unit lots with smaller unit sizes.</div>
+            <div class="tooltip">Same density bonus formula as the 4-8 checkbox, capped at 16 additional units instead of 8 — meaningfully larger on bigger 1-3 unit lots with smaller unit sizes. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked.</div>
         </label>
         
         <label class="checkbox-group tooltip-container">
@@ -348,7 +348,7 @@
         <label class="checkbox-group tooltip-container">
             <input type="checkbox" class="policy-cb" value="no_parking"> Eliminate Parking Minimums
             <span class="info-icon">i</span>
-            <div class="tooltip">Boosts achievable density by 20% on most interventions by freeing up parking space for housing. Based on research (Shoup) showing a parking space + aisle typically eats 300-400 sq ft of buildable land — 20% is this model's own moderate estimate, not a precise finding for El Paso. Midrise is the exception: it models the freed parking land directly (a much larger effect than 20%), so the multiplier isn't applied on top of it. Full explanation in "How this model works."</div>
+            <div class="tooltip">Two effects. First, removes the parking-land deduction that Missing Middle, SB840 Baseline, and Midrise otherwise apply (assuming 1 space/unit at 300 sq ft each) — often the larger effect. Second, boosts ADU/Lot Split yield by 20% (research: Shoup — a moderate estimate, not a precise finding for El Paso). Not applied twice to Midrise or Mansion Conversion, which already model parking directly. Full explanation in "How this model works."</div>
         </label>
 
         <div style="margin-top: 16px; padding: 10px 12px; border: 1px dashed var(--jobs-light); border-radius: 8px; background: #fdf6ee;">
@@ -356,7 +356,7 @@
             <label class="checkbox-group tooltip-container" style="margin-bottom: 4px;">
                 <input type="checkbox" class="policy-cb" value="sb840_baseline"> SB840 Baseline (Commercial &amp; 4+ Unit Parcels)
                 <span class="info-icon">i</span>
-                <div class="tooltip">Texas SB840's flat, blunt mandate: commercial parcels, vacant land, and parcels already at 4+ units must be allowed 4 floors and the citywide max density (145 units/acre) — the city has no discretion to restrict this. This is what happens by default if nothing more tailored is done. It is intentionally excluded from "Load Full Reform Package" — the other interventions exist precisely to avoid needing this blunt instrument.</div>
+                <div class="tooltip">Texas SB840's flat, blunt mandate: commercial parcels, vacant land, and parcels already at 4+ units must be allowed 4 floors and the citywide max density (145 units/acre) — the city has no discretion to restrict this. Assumes 1 off-street parking space per unit unless "Eliminate Parking Minimums" is also checked. This is what happens by default if nothing more tailored is done. It is intentionally excluded from "Load Full Reform Package" — the other interventions exist precisely to avoid needing this blunt instrument.</div>
             </label>
             <p style="font-size: 10.5px; color: var(--text-muted); margin: 4px 0 0 0; line-height: 1.4;">Shows the out-of-scale development SB840 forces absent local action — the reason the interventions above are preferable, not an alternative to them.</p>
         </div>
@@ -482,7 +482,11 @@
         every scenario shows zero. (Earlier versions gave Commercial and Mixed Use their own flat
         floor yields on every underutilized parcel once any box was checked — so Mixed Use plus
         ADUs alone reported ~50,000 units and ~85,000 jobs that no selected reform created, versus
-        416 units from ADUs under any other scenario. That's removed.)</p>
+        416 units from ADUs under any other scenario. That's removed.) A related, separate bug
+        persisted after that fix: checking "Eliminate Parking Minimums" alone — with no
+        job-producing policy active — still generated jobs under any scenario that keeps them,
+        because parking reform had its own standalone job formula identical to Midrise's. See
+        "Midrise's density cap" below for that fix.</p>
 
         <h3>Market Absorption Rate — and how we chose 8%</h3>
         <p>Gross capacity is multiplied by this adjustable rate to reflect that not every
@@ -537,7 +541,11 @@
         additional local limits in exchange for offering a density bonus. That's what the two
         Missing Middle checkboxes model — a bonus program specifically for those parcels, capped at
         8 or 16 additional units depending on which is selected, using a reduced 35 ft height limit
-        (≈3 floors) rather than SB840's full 4-floor mandate.</p>
+        (≈3 floors) rather than SB840's full 4-floor mandate. Both tiers, and SB840 Baseline, assume
+        one off-street parking space per unit (300 sq ft each) unless "Eliminate Parking Minimums"
+        is also checked, which measurably reduces their achievable yield — the same land-consumption
+        calculation Midrise uses. (An earlier version described this parking assumption without
+        actually implementing it in either formula, so the stated framing and the math disagreed.)</p>
         <p><strong>Why 3 units is the dividing line for Missing Middle:</strong> SB840 is triggered
         by anything permitting <em>more than 3 units</em>. Above that line the state mandate simply
         applies and the city has no discretion — so a local density-bonus program can only be
@@ -549,7 +557,8 @@
         <p><strong>Mansion Conversion is a separate tool with no unit-count threshold.</strong>
         It isn't an SB840 program and doesn't rely on SB840's 3-unit trigger. Its distinguishing
         feature is that it requires <em>no additional parking</em>, while Missing Middle and SB840
-        Baseline are framed around one space per unit. See "How Mansion Conversion is calculated"
+        Baseline both deduct land for one off-street space per unit (unless parking reform is also
+        active) — a real difference in the math, not just in how each is described. See "How Mansion Conversion is calculated"
         below. A parcel can be eligible for both Mansion Conversion and another program; that isn't
         double-counting, because the engine credits only the single highest-yielding intervention
         per parcel.</p>
@@ -608,11 +617,24 @@
         <p><strong>Why a parcel might still net zero:</strong> a house under 1,000 sq ft can't yield
         a second 500 sq ft unit; a building already at one unit per 500 sq ft or denser has nothing
         left to carve out; roughly 20–30% of residential parcels (varies by district) have no recorded
-        building size at all, which the parcel popup flags as a data gap rather than a judgment; and
-        parcels inside historic districts are excluded while "Protect Historic Districts" is on.</p>
-        <p><strong>No parking, no stacking:</strong> because conversions already assume no added
-        parking, the separate 20% "Eliminate Parking Minimums" boost is not applied on top of them —
-        that would credit the same freed-up space twice.</p>
+        building size at all, which the parcel popup flags as a data gap rather than a judgment.</p>
+        <p><strong>Historic districts do NOT block this policy</strong> — unlike every other
+        intervention, Mansion Conversion is exempt from "Protect Historic Districts." It's an
+        interior reconfiguration with no exterior or footprint change, so it isn't what historic
+        review governs, and real informal conversions are common in exactly these older,
+        larger-home neighborhoods. (An earlier version excluded historic parcels from this policy
+        entirely, since historic protection blocked the whole parcel from every calculation rather
+        than being applied per-policy — that silently zeroed conversions across entire historic
+        neighborhoods.)</p>
+        <p><strong>No parking required — and that's the point of this tool.</strong> Missing Middle
+        and SB840 Baseline both assume one off-street parking space per unit (300 sq ft each) unless
+        "Eliminate Parking Minimums" is also checked, which measurably constrains their yield.
+        Mansion Conversion carries no such assumption at all, in either direction — its formula is
+        purely building size ÷ conversion size, unaffected by whether parking reform is active. That
+        absence of a parking constraint is what makes it a genuinely different, often more valuable
+        lever than new construction, not a detail buried in a formula. Because it already assumes no
+        parking, the separate 20% "Eliminate Parking Minimums" unit boost is not applied to it either
+        — that would credit the same assumption twice.</p>
         <p>(Earlier versions discounted floor area by 15% and divided by the 850 sq ft
         new-construction unit size, so a 2,000 sq ft house yielded just 1 net unit and an 1,800 sq ft
         house yielded 0. About 4,300 residential parcels read as "not eligible" purely from that
@@ -625,20 +647,28 @@
         already presumes a multi-story building: an earlier version of this model multiplied
         145/acre <em>by</em> the floor count, implying 580 units/acre at 4 floors — roughly 4× the
         stated maximum and ~5× Manhattan's overall density. At the default 4 floors the envelope
-        yields about 102 units/acre; the cap starts binding around 6 floors.</p>
+        yields about 102 units/acre; the cap starts binding around 6 floors. Missing Middle and
+        SB840 Baseline now use this same parking-land deduction (see below), so this treatment is
+        consistent across all three new-construction policies.</p>
         <p>Two double-counting rules follow from this. First, the 20% parking-reform boost is
         <strong>not</strong> applied to Midrise units — Midrise already models freed parking land
         directly by skipping its own parking deduction, an effect far larger than 20%, so applying
-        both would credit the same policy twice. Second, the parking reform job yield and Midrise's
-        ground-floor job yield use the <em>same</em> formula over the <em>same</em> ground-floor
-        commercial space, so the model takes the larger of the two rather than adding them, which
-        previously roughly doubled job counts whenever both were active.</p>
+        both would credit the same policy twice. Second, an earlier version also gave parking reform
+        its own standalone job formula, identical to Midrise's ground-floor job yield — meaning
+        checking "Eliminate Parking Minimums" alone, with no construction policy active at all, still
+        manufactured commercial jobs on every underutilized parcel citywide (jobs reached 100% of
+        target from parking alone under Vertical Mixed Use, with zero housing policies selected).
+        That standalone job formula is removed. Only Midrise generates jobs now; parking reform
+        boosts whatever construction is already happening, it doesn't invent construction of its own.</p>
 
         <h3>Geographic constraints</h3>
-        <p>Historic district protection, transit-corridor-only filtering, and recorded deed
-        restrictions can each be toggled. Deed restrictions, when enabled, are applied as a
-        <strong>final override</strong> after all other calculations — a single-family-only
-        covenant caps a parcel at 1 unit and 0 jobs regardless of scenario or policy.</p>
+        <p>Historic district protection blocks new-construction and exterior-changing policies
+        (Lot Splits, Missing Middle, Midrise, SB840 Baseline) on parcels within historically
+        designated boundaries — except Mansion Conversion, which is exempt (see above).
+        Transit-corridor-only filtering and recorded deed restrictions can each be toggled too. Deed
+        restrictions, when enabled, are applied as a <strong>final override</strong> after all other
+        calculations — a single-family-only covenant caps a parcel at 1 unit and 0 jobs regardless of
+        scenario or policy.</p>
 
         <h3>Key limitations</h3>
         <ul>
@@ -1172,7 +1202,16 @@
 
                     // FIX 1: Removed the "activePolicies.length > 0" requirement from this main block
                     // This allows Base Scenarios to calculate independently
-                    if (!isProtectedHistoric && !isOutsideTransit) {
+                    // Historic protection no longer excludes the parcel from this whole block — it's
+                    // applied selectively inside the policy loop below, per policy. Mansion Conversion
+                    // is exempt: it's an interior reconfiguration with no exterior or footprint change,
+                    // so it doesn't trigger the exterior-alteration review historic protection exists
+                    // for. Everything else that adds new construction (Lot Splits, Missing Middle,
+                    // Midrise, SB840 Baseline) still respects it. (Previously the whole parcel was
+                    // skipped when historic-protected — checked by default — which silently zeroed
+                    // Mansion Conversion across entire historic neighborhoods, even though real
+                    // informal conversions are common in exactly these older, larger-home areas.)
+                    if (!isOutsideTransit) {
                         
                         // FIX 2: Relaxed the "Underutilized" requirement for Mixed and Commercial scenarios
                         // so jobs aren't immediately disqualified just because a building exists on the lot.
@@ -1207,7 +1246,26 @@
                         props._winningRuleUnits = null;
                         props._winningRuleJobs = null;
 
+                        // Shared by Missing Middle, SB840 Baseline, and Midrise: if off-street parking
+                        // is still required (Eliminate Parking Minimums NOT active), reduce achievable
+                        // units by however much land that parking would consume — 300 sq ft/space, at
+                        // an assumed 1 space per unit (only the sq-ft-per-space figure was given; the
+                        // ratio is this model's assumption). Mansion Conversion does NOT use this —
+                        // it's the one intervention modeled with no added parking requirement at all,
+                        // which is what makes it a genuinely different tool from the other two.
+                        const applyParkingConstraint = (grossUnits) => {
+                            if (activePolicies.includes('no_parking') || grossUnits <= 0) return grossUnits;
+                            const parkingAreaNeeded = grossUnits * PARKING_SQFT_PER_SPACE;
+                            const remainingLandFraction = Math.max(0, (lotSqft - parkingAreaNeeded) / lotSqft);
+                            return Math.floor(grossUnits * remainingLandFraction);
+                        };
+
                         activePolicies.forEach(policy => {
+                            // Historic protection blocks everything that adds new construction or
+                            // changes a building's exterior/footprint. Mansion Conversion is the one
+                            // exception — an interior reconfiguration that historic review doesn't
+                            // govern the way it governs new construction.
+                            if (isProtectedHistoric && policy !== 'mansion_conversions') return;
                             let net_u = 0, net_j = 0, ruleLabel = null;
 
                             // --- ADU: any existing single-family home (exactly 1 existing unit)
@@ -1266,14 +1324,18 @@
                             // including 16 additional units), not a gross count reduced afterward.
                             // Not eligible on vacant land or parcels already at 4+ units — those
                             // aren't the 1-3 unit parcels this bonus program is offered to.
+                            // Requires one off-street parking space per unit unless "Eliminate
+                            // Parking Minimums" is also checked — see applyParkingConstraint above.
+                            // This is what gives Mansion Conversion (no parking requirement at all)
+                            // a genuine advantage over this program, not just a naming difference.
                             else if (policy === 'missing_middle_4_8' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
-                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
+                                const envelopeUnits = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption));
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(8, additionalCapacity);
                                 ruleLabel = 'Missing Middle (max 8)';
                             }
                             else if (policy === 'missing_middle_9_16' && existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS) {
-                                const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption);
+                                const envelopeUnits = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * MISSING_MIDDLE_WORKAROUND_FLOORS) / unitSizeAssumption));
                                 const additionalCapacity = Math.max(0, envelopeUnits - existingUnits);
                                 net_u = Math.min(16, additionalCapacity);
                                 ruleLabel = 'Missing Middle (max 16)';
@@ -1291,8 +1353,10 @@
                             // categories SB840's flat mandate covers. (An earlier version also
                             // checked isCommercial separately here, which was redundant: any parcel
                             // passing the 1-3 unit guard already falls in one of those categories.)
+                            // Requires one off-street parking space per unit unless "Eliminate
+                            // Parking Minimums" is also checked — see applyParkingConstraint above.
                             else if (policy === 'sb840_baseline' && meetsUnderutilized && !(existingUnits >= 1 && existingUnits <= SB840_TRIGGER_MAX_UNITS)) {
-                                const gross = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption);
+                                const gross = applyParkingConstraint(Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * SB840_MANDATED_FLOORS) / unitSizeAssumption));
                                 net_u = Math.max(0, gross - existingUnits);
                                 ruleLabel = 'SB840 Baseline';
                             }
@@ -1314,15 +1378,9 @@
                             // sq-ft-per-space figure was given).
                             else if (policy === 'midrise' && meetsUnderutilized) {
                                 const acres = lotSqft / SQFT_PER_ACRE;
-                                const parkingEliminated = activePolicies.includes('no_parking');
                                 const envelopeUnits = Math.floor((lotSqft * MISSING_MIDDLE_COVERAGE * midriseFloors) / unitSizeAssumption);
                                 const densityCap = Math.floor(CITYWIDE_DENSITY_PER_ACRE * acres);
-                                let gross_u = Math.min(envelopeUnits, densityCap);
-                                if (!parkingEliminated && gross_u > 0) {
-                                    const parkingAreaNeeded = gross_u * PARKING_SQFT_PER_SPACE;
-                                    const remainingLandFraction = Math.max(0, (lotSqft - parkingAreaNeeded) / lotSqft);
-                                    gross_u = Math.floor(gross_u * remainingLandFraction);
-                                }
+                                const gross_u = applyParkingConstraint(Math.min(envelopeUnits, densityCap));
                                 net_u = Math.max(0, gross_u - existingUnits);
 
                                 // Ground-floor commercial jobs — unchanged, independent of the
@@ -1353,14 +1411,24 @@
                             stackedJobs += net_j;
                         });
 
-                        // PARKING BOOST: computed before base scenario so it survives the residential zero.
-                        // Single-use rule: parking generates units OR jobs depending on scenario, not both —
-                        // except vertical mixed use which allows both.
-                        // Job formula: lotSqft * ground-floor coverage (50%) / 1,000 sq ft per job.
-                        let parkingJobBoost = 0;
-                        let stackedParkingJobBoost = 0;
+                        // PARKING BOOST: units only. Jobs are NOT boosted here — this used to also set
+                        // a job yield identical to Midrise's own ((lot × 0.5) ÷ job size), which meant
+                        // checking "Eliminate Parking Minimums" alone — with no job-producing policy
+                        // active — manufactured commercial jobs on every underutilized parcel citywide.
+                        // Only Midrise actually models ground-floor commercial construction; parking
+                        // reform boosts whatever construction is already happening; it doesn't invent
+                        // construction of its own. (Removed rather than gated, since it was fully
+                        // redundant with Midrise's own identical formula whenever Midrise was active.)
                         if (hasParkingBoost && meetsUnderutilized) {
                             const otherPolicies = activePolicies.filter(p => p !== 'no_parking');
+                            // Mansion and Midrise already model parking completely on their own —
+                            // Mansion by never requiring it, Midrise by deducting its actual land
+                            // footprint. Neither needs the generic floor below on top of that; without
+                            // this check the floor could still pull Mansion's total UP even though the
+                            // 1.2x multiplier was correctly suppressed for it (checked below), which
+                            // is why "Mansion + parking" and "Mansion alone" used to differ.
+                            const winning = props._winningRuleUnits || '';
+                            const parkingAlreadyModeled = winning.startsWith('Midrise') || winning.startsWith('Mansion');
                             // The standalone floor parking alone would produce — used as a lower bound
                             // below so that adding a second policy can never REDUCE units relative to
                             // running parking reform by itself. (Previously, combining parking with a
@@ -1368,7 +1436,10 @@
                             // ADUs — replaced this floor entirely with 1.2x that small number, which
                             // could be less than the floor on a large lot: adding a policy made the
                             // total go down. Fixed to take the larger of the two.)
-                            const parkingAloneFloor = (baseScenario !== 'commercial') ? (lotSqft / 5000) : 0;
+                            // Zero for historic parcels (general redevelopment capacity, not specific
+                            // to the Mansion exemption) and whenever Mansion/Midrise are already
+                            // driving the result (see above).
+                            const parkingAloneFloor = (baseScenario !== 'commercial' && !isProtectedHistoric && !parkingAlreadyModeled) ? (lotSqft / 5000) : 0;
 
                             if (otherPolicies.length === 0) {
                                 if (baseScenario !== 'commercial') {
@@ -1386,17 +1457,11 @@
                                 // Mansion Conversion likewise already assumes NO parking is required,
                                 // so boosting it again for parking reform would credit the same
                                 // freed-up space twice (design rule 3).
-                                const winning = props._winningRuleUnits || '';
-                                const parkingAlreadyModeled = winning.startsWith('Midrise') || winning.startsWith('Mansion');
                                 if (baseScenario !== 'commercial') {
                                     const unitMultiplier = parkingAlreadyModeled ? 1 : parkingBoostMultiplier;
                                     maxNetUnits = Math.max(maxNetUnits * unitMultiplier, parkingAloneFloor);
                                     stackedUnits = Math.max(stackedUnits * unitMultiplier, parkingAloneFloor);
                                 }
-                            }
-                            if (baseScenario !== 'residential') {
-                                parkingJobBoost = (lotSqft * 0.5) / jobSizeAssumption;
-                                stackedParkingJobBoost = parkingJobBoost;
                             }
                         }
 
@@ -1427,14 +1492,6 @@
                             }
                             // vacant/other: no override — policy loop values pass through
                         }
-
-                        // Re-apply parking job boost after base scenario — always survives residential zero.
-                        // Uses max(), not +=, because the parking job boost and Midrise's own job yield
-                        // are the SAME formula over the SAME ground-floor commercial space
-                        // ((lot × 0.5) / jobSize). Adding them counted that space twice, roughly
-                        // doubling job yield whenever Midrise and parking reform were both active.
-                        maxNetJobs = Math.max(maxNetJobs, parkingJobBoost);
-                        stackedJobs = Math.max(stackedJobs, stackedParkingJobBoost);
 
                         finalUnits = maxNetUnits * absorptionRate;
                         finalJobs = maxNetJobs * absorptionRate;
